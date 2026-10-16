@@ -8,16 +8,16 @@
 
 ## Modelo de defensa
 
-Invariantes definidas en `specs/00-fundamentos.md`. Cada una con el test que la verifica:
+Invariantes definidas en `specs/00-fundamentos.md`. Cada una con los tests y contratos de arquitectura que la verifican. `(parcial: …)` indica qué parte cubre hoy; `(pendiente, spec NN)` indica qué spec la completa. `make check-docs` falla si una fila no tiene ni lo uno ni lo otro.
 
-| # | Invariante | Test |
-|---|------------|------|
-| 1 | Sin capacidad de mover dinero | <!-- --> |
-| 2 | Planner/executor separados, gate humano en código | <!-- --> |
-| 3 | Scoping de `customer_id` por capacidad | <!-- --> |
-| 4 | Enmascarado de datos sensibles en la frontera | <!-- --> |
-| 5 | Contenido no confiable delimitado | `test_validator_rejects_action_induced_by_tool_result_injection` (pendiente, spec 05) |
-| 6 | Groundedness verificada en código | <!-- --> |
+| # | Invariante | Tests y contratos |
+|---|------------|-------------------|
+| 1 | Sin capacidad de mover dinero | `test_mock_api_has_no_write_routes` (parcial: API mock); `test_mcp_exposes_no_money_moving_tool` (pendiente, spec 02) |
+| 2 | Planner/executor separados, gate humano en código | `test_executor_requires_recorded_approval` (pendiente, spec 05); contrato `agente no importa executor` (pendiente, spec 05) |
+| 3 | Scoping de `customer_id` por capacidad | `test_endpoints_never_return_other_customer_data` (parcial: API mock); `test_mcp_tools_ignore_model_supplied_customer_id` (pendiente, spec 02) |
+| 4 | Enmascarado de datos sensibles en la frontera | `test_fixture_fails_on_raw_identifier` (parcial: logs de tests); `test_mask_applied_before_model_and_traces` (pendiente, spec 02); contrato `solo el executor llama a unmask()` (pendiente, spec 02) |
+| 5 | Contenido no confiable (clientes, políticas, resultados de tools) delimitado | `test_validator_rejects_injected_action[customer_message\|policy_chunk\|tool_result]` (pendiente, spec 05); `test_untrusted_content_is_delimited` (pendiente, specs 03 y 05) |
+| 6 | Groundedness verificada en código | `test_unsupported_citation_or_amount_is_flagged` (pendiente, spec 05) |
 
 ### Riesgo residual y cómo se detecta en producción
 
