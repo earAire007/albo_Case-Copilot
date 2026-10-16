@@ -1,6 +1,6 @@
 # Spec 01b — Harness de desarrollo
 
-**Estado:** borrador
+**Estado:** cerrada
 **Depende de:** spec-01
 
 ## Objetivo
@@ -72,4 +72,13 @@ Abiertas:
 
 ## Cambios durante la implementación
 
-<!-- Se llena al cerrar. -->
+- `make check` (lint → test → check-docs) agregado antes del cierre: los hooks solo corren en Claude Code y AGENTS.md promete un setup independiente de la herramienta. Es regla antes de cada commit; pre-commit y CI quedan fuera (riesgo residual en DESIGN.md).
+- Hook Stop: el comando se inyecta por `VERIFY_ON_STOP_CMD` para poder probarlo sin recursión; el sensor vive como plugin (`tests/sensitive_logs.py`) y se prueba con `runpytest_subprocess`; el fixture de logs baja el root logger a DEBUG durante cada test.
+- Sensor extendido a stdout, stderr y excepciones vía `pytest_runtest_makereport` (sin capsys/capfd); `_run_inner` consume con capsys la salida que pytester re-emite. Trazas persistidas: pendiente de la spec 05.
+- Detector endurecido antes del cierre (base de `mask()` en la spec 02): separadores (≥3 dígitos salvo el último), `long_number` para 20+ dígitos, excepción exacta para la clave de rastreo `CC`+18 (17/82 claves del dataset daban falso positivo).
+- `pyright[nodejs]` trae su propio Node: no depende del Node del sistema ni de Docker.
+- `/check-docs` amplió sus reglas tras su primera corrida (pasó en verde con 5 invariantes sin cobertura): fila sin tests ni pendientes, fila solo parcial, y pendiente de una spec cerrada son ERROR. Formato de celda: `test` | `(parcial: …)` | `(pendiente, spec NN)` | `contrato …`, separados por `;`.
+- DESIGN.md: tests parciales existentes marcados; invariante 5 como test parametrizado por vector (`customer_message|policy_chunk|tool_result`), alineado con EVALS.md; contratos de arquitectura pendientes para las invariantes 2 y 4.
+- Tests de check_docs sobre un repo sintético, no sobre el contenido vivo de los docs.
+- pytest silencia solo `StarletteDeprecationWarning` desde `fastapi.testclient` (deprecación de la dependencia; se revisa al actualizar FastAPI/Starlette).
+- Bitácora: ver AI_NOTES (f08128c, 9e49c19, 6697845, segunda revisión de la spec-01b).
