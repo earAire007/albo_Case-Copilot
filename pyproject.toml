@@ -24,6 +24,12 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# Dependency deprecation, not ours: starlette.testclient (imported by fastapi.testclient)
+# asks for httpx2 instead of httpx. Scoped to that category and module only.
+# Revisit when upgrading FastAPI/Starlette.
+filterwarnings = [
+    "ignore::starlette.exceptions.StarletteDeprecationWarning:fastapi.testclient",
+]
 
 [tool.pyright]
 include = ["backend", "data", "tests", "scripts"]
