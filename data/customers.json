@@ -1,0 +1,182 @@
+[
+  {
+    "card_number": "9759659671665088",
+    "clabe": "646180198384020099",
+    "created_at": "2024-01-01T10:00:00-06:00",
+    "curp": "GOCA900225MVZNSN02",
+    "id": "cus_001",
+    "name": "Ana Gonzalez Castillo",
+    "rfc": "GOCA90022593V"
+  },
+  {
+    "card_number": "9142124517599013",
+    "clabe": "646180522488216773",
+    "created_at": "2024-10-14T10:00:00-06:00",
+    "curp": "SAAL960822HYNNGS08",
+    "id": "cus_002",
+    "name": "Luis Sanchez Aguilar",
+    "rfc": "SAAL960822B7R"
+  },
+  {
+    "card_number": "9897953707716608",
+    "clabe": "646180812493557124",
+    "created_at": "2023-10-15T10:00:00-06:00",
+    "curp": "LOGM671029MNLPMR06",
+    "id": "cus_003",
+    "name": "Maria Lopez Gomez",
+    "rfc": "LOGM671029E1E"
+  },
+  {
+    "card_number": "9603839099382643",
+    "clabe": "646180885303355003",
+    "created_at": "2025-02-18T10:00:00-06:00",
+    "curp": "CUOJ940602HQTRRR06",
+    "id": "cus_004",
+    "name": "Jorge Cruz Ortiz",
+    "rfc": "CUOJ9406023F7"
+  },
+  {
+    "card_number": "9168361200222466",
+    "clabe": "646180887190255385",
+    "created_at": "2024-08-31T10:00:00-06:00",
+    "curp": "JILS940312MPLMPF02",
+    "id": "cus_005",
+    "name": "Sofia Jimenez Lopez",
+    "rfc": "JILS940312NGA"
+  },
+  {
+    "card_number": "9957471587619948",
+    "clabe": "646180984626290681",
+    "created_at": "2024-04-26T10:00:00-06:00",
+    "curp": "DIGC841105HVZZMR09",
+    "id": "cus_006",
+    "name": "Carlos Diaz Gomez",
+    "rfc": "DIGC841105YSW"
+  },
+  {
+    "card_number": "9435556604518966",
+    "clabe": "646180102458713163",
+    "created_at": "2024-01-01T10:00:00-06:00",
+    "curp": "MAHV720317MBCRRL00",
+    "id": "cus_007",
+    "name": "Valeria Martinez Hernandez",
+    "rfc": "MAHV7203171GA"
+  },
+  {
+    "card_number": "9472424129664423",
+    "clabe": "646180990606516625",
+    "created_at": "2023-12-02T10:00:00-06:00",
+    "curp": "MOHD690711HVZRRG03",
+    "id": "cus_008",
+    "name": "Diego Morales Hernandez",
+    "rfc": "MOHD6907112D4"
+  },
+  {
+    "card_number": "9465215204551678",
+    "clabe": "646180126962848759",
+    "created_at": "2025-04-10T10:00:00-06:00",
+    "curp": "ROTF001006MQTDRRA0",
+    "id": "cus_009",
+    "name": "Fernanda Rodriguez Torres",
+    "rfc": "ROTF001006YKS"
+  },
+  {
+    "card_number": "9235375730760620",
+    "clabe": "646180167104482440",
+    "created_at": "2024-02-17T10:00:00-06:00",
+    "curp": "HETR890609HQTRRC02",
+    "id": "cus_010",
+    "name": "Ricardo Hernandez Torres",
+    "rfc": "HETR890609MDB"
+  },
+  {
+    "card_number": "9720663849002469",
+    "clabe": "646180657433633441",
+    "created_at": "2024-12-14T10:00:00-06:00",
+    "curp": "DIOD801122MNLZRN00",
+    "id": "cus_011",
+    "name": "Daniela Diaz Ortiz",
+    "rfc": "DIOD80112285W"
+  },
+  {
+    "card_number": "9891141937889645",
+    "clabe": "646180525971953032",
+    "created_at": "2023-11-13T10:00:00-06:00",
+    "curp": "HERA831030HBCRDL03",
+    "id": "cus_012",
+    "name": "Alejandro Hernandez Rodriguez",
+    "rfc": "HERA83103074T"
+  },
+  {
+    "card_number": "9461433452549948",
+    "clabe": "646180005913318294",
+    "created_at": "2024-10-24T10:00:00-06:00",
+    "curp": "ROGP930124MQTDML08",
+    "id": "cus_013",
+    "name": "Paola Rodriguez Gomez",
+    "rfc": "ROGP930124ELD"
+  },
+  {
+    "card_number": "9364699712927052",
+    "clabe": "646180639422381094",
+    "created_at": "2024-11-22T10:00:00-06:00",
+    "curp": "GOCM700622HJCMRG09",
+    "id": "cus_014",
+    "name": "Miguel Gomez Cruz",
+    "rfc": "GOCM700622ZMC"
+  },
+  {
+    "card_number": "9219241299580728",
+    "clabe": "646180515178813804",
+    "created_at": "2024-12-19T10:00:00-06:00",
+    "curp": "RORG831127MVZDZB00",
+    "id": "cus_015",
+    "name": "Gabriela Rodriguez Ruiz",
+    "rfc": "RORG8311273BW"
+  },
+  {
+    "card_number": "9745867421047682",
+    "clabe": "646180440788648275",
+    "created_at": "2024-04-22T10:00:00-06:00",
+    "curp": "PEME010808HBCRNDA3",
+    "id": "cus_016",
+    "name": "Eduardo Perez Mendoza",
+    "rfc": "PEME01080894R"
+  },
+  {
+    "card_number": "9529412371577297",
+    "clabe": "646180596469486600",
+    "created_at": "2024-03-09T10:00:00-06:00",
+    "curp": "OIMA800828MMCRRN08",
+    "id": "cus_017",
+    "name": "Andrea Ortiz Martinez",
+    "rfc": "OIMA800828WZX"
+  },
+  {
+    "card_number": "9679648090922045",
+    "clabe": "646180803984113594",
+    "created_at": "2025-08-03T10:00:00-06:00",
+    "curp": "AUDR980706HBCGZB03",
+    "id": "cus_018",
+    "name": "Roberto Aguilar Diaz",
+    "rfc": "AUDR980706TZR"
+  },
+  {
+    "card_number": "9065363880994111",
+    "clabe": "646180803041923384",
+    "created_at": "2025-07-25T10:00:00-06:00",
+    "curp": "TOMC971222MNLRNM01",
+    "id": "cus_019",
+    "name": "Camila Torres Mendoza",
+    "rfc": "TOMC9712222UR"
+  },
+  {
+    "card_number": "9836701660677018",
+    "clabe": "646180042039909773",
+    "created_at": "2024-05-29T10:00:00-06:00",
+    "curp": "REAJ740917HYNYGV09",
+    "id": "cus_020",
+    "name": "Javier Reyes Aguilar",
+    "rfc": "REAJ740917BML"
+  }
+]
