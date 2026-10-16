@@ -15,6 +15,10 @@ Una frase.
 
 Interfaces, schemas, endpoints o tools que esta spec define o consume.
 
+## Contratos de arquitectura
+
+Contratos de import-linter que esta spec agrega o modifica (módulo → qué no puede importar). "Ninguno" si no aplica.
+
 ## Criterios de aceptación
 
 Cada uno debe poder verificarse con un test o un eval.
