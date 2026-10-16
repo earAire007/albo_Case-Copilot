@@ -1,6 +1,6 @@
 # Spec 00 — Fundamentos
 
-**Estado:** activa
+**Estado:** cerrada
 **Depende de:** —
 
 ## Objetivo
@@ -49,4 +49,7 @@ Estas garantías viven en código y cada una tiene un test determinista:
 
 ## Cambios durante la implementación
 
-<!-- Se llena al cerrar. -->
+- Invariante 5 ampliada a resultados de tools (`943b634`), tras sembrar una injection en el concepto de un SPEI (spec 01).
+- AC4 cubierto con nombres de test, contratos de arquitectura y marcas `(parcial: …)` / `(pendiente, spec NN)` en DESIGN.md; `make check-docs` (spec 01b) hace cumplir que ninguna invariante quede sin cobertura ni pendiente, y que ningún pendiente sobreviva al cierre de su spec.
+- AC1–AC3 verificados por inspección del repo. El contenido de `.env.example` no lo lee el agente (regla `deny` en `.claude/settings.json`); que no tenga valores reales es verificación humana.
+- Las decisiones abiertas (loop propio vs PydanticAI, embeddings vs BM25) siguen diferidas a las specs 05 y 03.

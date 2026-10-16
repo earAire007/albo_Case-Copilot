@@ -4,7 +4,7 @@ Una spec por etapa, máximo una página. Ciclo: spec → commit → implementaci
 
 | # | Spec | Estado | Tiempo estimado |
 |---|------|--------|-----------------|
-| 00 | [Fundamentos](00-fundamentos.md) | activa | 20 min |
+| 00 | [Fundamentos](00-fundamentos.md) | cerrada | 20 min |
 | 01 | [Dominio y sistema simulado](01-dominio-dataset.md) | cerrada | 45 min |
 | 01b | [Harness de desarrollo](01b-harness-desarrollo.md) | cerrada | 45 min |
 | 02 | Servidor MCP y frontera de seguridad | pendiente | 60 min |
