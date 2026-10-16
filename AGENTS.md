@@ -22,12 +22,12 @@ Requiere [uv](https://docs.astral.sh/uv/); `uv sync` instala Python 3.12 y depen
 ```bash
 make test      # tests deterministas, sin API key
 make lint      # ruff check + format --check (+ pyright + import-linter desde spec 01b)
-make check-docs  # coherencia spec 00 ↔ DESIGN.md ↔ tests (spec 01b)
+make check-docs  # tests de la tabla de invariantes y filas de specs/README.md (spec 01b)
 make dataset   # regenera data/*.json (determinista; no debe producir diff)
 make mock      # API mock del core en :8000
 ```
 
-Desde la spec 01b, un hook de Claude Code corre `make lint` tras cada Edit/Write de un `.py`. Si falla, corrige antes de seguir.
+Desde la spec 01b, los hooks de Claude Code corren ruff sobre cada `.py` editado y, al terminar el turno, `make lint` y `make test`. Si fallan, corrige antes de seguir.
 
 Pendientes: `make up` (docker compose, cuando haya más de un servicio) y `make evals` (spec 04, requiere `ANTHROPIC_API_KEY` en `.env`).
 
