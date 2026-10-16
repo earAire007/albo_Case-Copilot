@@ -1,8 +1,17 @@
 """Deterministic doc-coherence checks (spec 01b). Used by `make check-docs` and /check-docs.
 
-1. Every test named in the DESIGN.md invariants table exists in tests/ or is marked
-   "pendiente".
-2. Every specs/README.md row link points to an existing spec, every spec file has a
+DESIGN.md invariants table — the third cell lists coverage items separated by ";":
+    `test_name` | `test_name[a\\|b]`      a test that must exist in tests/
+    contrato `name`                       an import-linter contract
+    ... (parcial: <qué cubre>)            covers only part of the invariant
+    ... (pendiente, spec NN[ y MM])       not written yet; owned by those specs
+
+Rules:
+1. Every named test without a pending mark exists in tests/.
+2. A row with no tests and no pending items is an error.
+3. A row whose tests are all partial and has no pending item is an error.
+4. A pending mark whose specs are all closed in specs/README.md is an error.
+5. Every specs/README.md row link points to an existing spec, every spec file has a
    row, and the row status matches the spec's **Estado:** line.
 
 Semantic coherence (spec 00 <-> DESIGN.md) is left to the /check-docs command.
@@ -13,13 +22,24 @@ import re
 import sys
 from pathlib import Path
 
-INVARIANT_ROW = re.compile(r"^\|\s*(\d+)\s*\|([^|]*)\|([^|]*)\|\s*$")
-TEST_NAME = re.compile(r"`(test_\w+)`")
+CELL_SPLIT = re.compile(r"(?<!\\)\|")
+TEST_NAME = re.compile(r"`(test_\w+)")
 TEST_DEF = re.compile(r"^\s*(?:async\s+)?def\s+(test_\w+)", re.MULTILINE)
-README_ROW = re.compile(r"^\|\s*([^|]+?)\s*\|([^|]*)\|\s*([^|]+?)\s*\|")
+PENDING = re.compile(r"\(pendiente,\s*specs?\s+([^)]+)\)", re.IGNORECASE)
+PARTIAL = re.compile(r"\(parcial\b", re.IGNORECASE)
+SPEC_ID = re.compile(r"\b(\d{2}[a-z]?)\b")
 LINK = re.compile(r"\]\(([^)]+\.md)\)")
 STATUS_LINE = re.compile(r"^\*\*Estado:\*\*\s*(.+?)\s*$", re.MULTILINE)
 NON_SPEC_FILES = {"README.md", "_template.md"}
+CLOSED = "cerrada"
+
+
+def table_rows(text: str) -> list[list[str]]:
+    rows = []
+    for line in text.splitlines():
+        if line.startswith("|"):
+            rows.append([c.strip() for c in CELL_SPLIT.split(line.strip().strip("|"))])
+    return rows
 
 
 def defined_tests(tests_dir: Path) -> set[str]:
@@ -29,22 +49,46 @@ def defined_tests(tests_dir: Path) -> set[str]:
     return names
 
 
+def spec_statuses(root: Path) -> dict[str, str]:
+    """Spec id (e.g. '01b') -> status column in specs/README.md."""
+    statuses = {}
+    for cells in table_rows((root / "specs" / "README.md").read_text(encoding="utf-8")):
+        if len(cells) >= 3 and SPEC_ID.fullmatch(cells[0]):
+            statuses[cells[0]] = cells[2]
+    return statuses
+
+
 def check_design(root: Path) -> list[str]:
     errors: list[str] = []
     existing = defined_tests(root / "tests")
-    for line in (root / "DESIGN.md").read_text(encoding="utf-8").splitlines():
-        m = INVARIANT_ROW.match(line)
-        if not m:
+    statuses = spec_statuses(root)
+    for cells in table_rows((root / "DESIGN.md").read_text(encoding="utf-8")):
+        if len(cells) < 3 or not cells[0].isdigit():
             continue
-        number, cell = m.group(1), m.group(3)
-        if "pendiente" in cell.lower():
-            continue
-        for name in TEST_NAME.findall(cell):
-            if name not in existing:
-                errors.append(
-                    f"DESIGN.md invariante {number}: `{name}` no existe en tests/ "
-                    "y no está marcado como pendiente"
-                )
+        where = f"DESIGN.md invariante {cells[0]}"
+        items = [i.strip() for i in cells[2].split(";") if i.strip() and "<!--" not in i]
+        has_pending = False
+        test_items = []
+        for item in items:
+            pending = PENDING.search(item)
+            if pending:
+                has_pending = True
+                ids = SPEC_ID.findall(pending.group(1))
+                if ids and all(statuses.get(i) == CLOSED for i in ids):
+                    errors.append(
+                        f"{where}: '{item}' sigue pendiente pero spec {', '.join(ids)} está cerrada"
+                    )
+                continue
+            for name in TEST_NAME.findall(item):
+                test_items.append(item)
+                if name not in existing:
+                    errors.append(
+                        f"{where}: `{name}` no existe en tests/ y no está marcado como pendiente"
+                    )
+        if not test_items and not has_pending:
+            errors.append(f"{where}: sin tests ni pendientes")
+        elif test_items and all(PARTIAL.search(i) for i in test_items) and not has_pending:
+            errors.append(f"{where}: solo cobertura parcial y ningún pendiente que la complete")
     return errors
 
 
@@ -52,14 +96,13 @@ def check_specs_index(root: Path) -> list[str]:
     errors: list[str] = []
     specs = root / "specs"
     linked: set[str] = set()
-    for line in (specs / "README.md").read_text(encoding="utf-8").splitlines():
-        m = README_ROW.match(line)
-        if not m:
+    for cells in table_rows((specs / "README.md").read_text(encoding="utf-8")):
+        if len(cells) < 3:
             continue
-        link = LINK.search(m.group(2))
+        link = LINK.search(cells[1])
         if not link:
             continue
-        filename, row_status = link.group(1), m.group(3).strip()
+        filename, row_status = link.group(1), cells[2]
         linked.add(filename)
         spec_path = specs / filename
         if not spec_path.is_file():
