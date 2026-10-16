@@ -18,9 +18,9 @@ Que las reglas no negociables se verifiquen con sensores automáticos durante el
 - **`make lint`** = `ruff check` + `ruff format --check` + `pyright` + `lint-imports`. Pyright en modo `standard` sobre `backend/`, `data/` y `tests/`, y en `strict` (lista `strict` de `[tool.pyright]`) sobre los módulos críticos (enmascarado, gate de aprobación, validador, executor) a medida que existan. Hoy la lista está vacía y cada spec que cree uno lo agrega.
 - **Hooks de Claude Code** (`.claude/settings.json`), en dos niveles:
   - `PostToolUse`, matcher `Edit|Write` → `.claude/hooks/ruff-on-edit.sh`: lee `tool_input.file_path` del JSON de stdin; si es `.py`, corre `ruff check` y `ruff format --check` solo sobre ese archivo; si falla, sale con 2 (feedback al agente). Si no es `.py`, sale con 0.
-  - `Stop` → `.claude/hooks/verify-on-stop.sh`: corre `make lint` y `make test`; si falla, sale con 2 y el agente recibe la salida y sigue trabajando. **Anti-bucle:** si el input trae `stop_hook_active: true` (ya se bloqueó una vez en este ciclo), reporta la falla en stderr y sale con 0 para no encerrar al agente.
+  - `Stop` → `.claude/hooks/verify-on-stop.sh`: corre `$VERIFY_ON_STOP_CMD` (por defecto `make lint && make test`; la variable existe para que los tests inyecten el comando sin recursión); si falla, sale con 2 y el agente recibe la salida y sigue trabajando. **Anti-bucle:** si el input trae `stop_hook_active: true` (ya se bloqueó una vez en este ciclo), reporta la falla en stderr y sale con 0 para no encerrar al agente.
 - **Detector** `backend/domain/sensitive.py`: `find_sensitive(text) -> list[Finding]` (tipo y posición, nunca el valor). Detecta CLABE (18 dígitos con dígito verificador válido), PAN (13–19 dígitos que pasan Luhn), RFC y CURP. Reutiliza `clabe_is_valid`, `luhn_is_valid`, `RFC_RE` y `CURP_RE` de `backend/domain/validators.py`. La spec 02 lo reutiliza para revisar trazas.
-- **Fixture global** (autouse, en `tests/conftest.py`): agrega un handler al root logger durante cada test y, al terminar, hace fallar el test si `find_sensitive` encuentra algo en algún registro (mensaje formateado + `exc_text`). Sin marcador de excepción.
+- **Fixture global** (autouse, plugin `tests/sensitive_logs.py` registrado en `tests/conftest.py` vía `pytest_plugins`, para poder probarlo con `pytester`): agrega un handler al root logger y baja su nivel a `DEBUG` durante cada test (luego lo restaura); al terminar, hace fallar el test si `find_sensitive` encuentra algo en algún registro (mensaje formateado + `exc_text`). Sin marcador de excepción.
 - **`/check-docs`** (`.claude/commands/check-docs.md`), híbrido; no edita nada, reporta y propone correcciones:
   - **Determinista:** `scripts/check_docs.py` (`make check-docs`, código ≠ 0 si falla) verifica que:
     1. cada test nombrado en la tabla de invariantes de `DESIGN.md` exista como `def test_…` en `tests/` o esté marcado "pendiente, spec NN";
@@ -36,8 +36,8 @@ Que las reglas no negociables se verifiquen con sensores automáticos durante el
 
 ## Criterios de aceptación
 
-1. `make lint` pasa sobre el código actual y falla ante un error de tipos introducido (test con archivo temporal).
-2. Un test con `pytester` demuestra que el fixture hace fallar un test que loguea una CLABE, una tarjeta, un RFC o una CURP completos, y que no falla con formas enmascaradas (`****1234`) ni con 18 dígitos sin dígito verificador válido.
+1. `make lint` pasa sobre el código actual (lo verifica el hook `Stop` en cada turno), y un test demuestra que pyright, con la configuración del repo, falla ante un error de tipos en un archivo temporal.
+2. Un test con `pytester` (`runpytest_subprocess`, para que el fixture externo no capture los logs de la sesión interna) demuestra que el fixture hace fallar un test que loguea una CLABE, una tarjeta, un RFC o una CURP completos, y que no falla con formas enmascaradas (`****1234`) ni con 18 dígitos sin dígito verificador válido.
 3. `find_sensitive` detecta todos los identificadores de `data/customers.json` (sin falsos negativos sobre el dataset).
 4. `lint-imports` pasa; un import prohibido (`backend.domain` → `fastapi`) lo hace fallar.
 5. Ambos hooks están registrados en `.claude/settings.json`. Con subprocess y un JSON de stdin simulado se verifica:
