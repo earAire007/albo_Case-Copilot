@@ -9,10 +9,11 @@ Agente que investiga casos de clientes de una fintech (SPEI, tarjeta), propone u
 ## Flujo de trabajo obligatorio
 
 1. Antes de implementar, lee `specs/README.md` y la spec activa.
-2. Si la spec no cuadra con lo que encuentras, **propón el cambio a la spec antes de tocar código**.
-3. Plan corto → espera OK → tests primero en lo crítico → implementación.
-4. Una spec se cierra cuando todos sus criterios de aceptación tienen un test o eval que los verifica.
-5. Si un agente te aceleró, se equivocó o tuviste que reescribir una instrucción, anótalo en `AI_NOTES.md` (sección "Bitácora") con el commit relacionado.
+2. El enunciado del reto está en `.local/` (confidencial, no versionado). Léelo cuando una spec dependa de requisitos del reto; no copies su texto a archivos versionados, resume con tus palabras.
+3. Si la spec no cuadra con lo que encuentras, **propón el cambio a la spec antes de tocar código**.
+4. Plan corto → espera OK → tests primero en lo crítico → implementación.
+5. Una spec se cierra cuando todos sus criterios de aceptación tienen un test o eval que los verifica.
+6. Si un agente te aceleró, se equivocó o tuviste que reescribir una instrucción, anótalo en `AI_NOTES.md` (sección "Bitácora") con el commit relacionado.
 
 ## Comandos
 
