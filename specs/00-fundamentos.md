@@ -32,7 +32,7 @@ Estas garantías viven en código y cada una tiene un test determinista:
 2. **Planner/executor separados.** El LLM produce un objeto validado; las acciones son un enum cerrado (`open_dispute`, `resend_cep`, `escalate_fraud`, `none`). El executor es código y solo ejecuta con aprobación humana registrada.
 3. **Scoping por capacidad.** El `customer_id` se inyecta desde el caso; el modelo no puede consultar otra cuenta.
 4. **Enmascarado en la frontera.** CLABE, tarjeta, RFC y CURP llegan enmascarados al modelo, a logs y a trazas. Solo el executor resuelve el valor real tras aprobación.
-5. **Contenido no confiable delimitado.** Texto de clientes y chunks de política van marcados como datos. El detector de injection es señal para métricas, no la garantía.
+5. **Contenido no confiable delimitado.** Texto de clientes, chunks de política y resultados de tools van marcados como datos. El detector de injection es señal para métricas, no la garantía.
 6. **Groundedness verificada en código.** Cada cita corresponde a un chunk recuperado; cada monto o folio mencionado existe en resultados de tools; sin sustento → flag explícito.
 
 ## Criterios de aceptación
