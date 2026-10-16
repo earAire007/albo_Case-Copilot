@@ -17,14 +17,16 @@ Agente que investiga casos de clientes de una fintech (SPEI, tarjeta), propone u
 
 ## Comandos
 
-> Se completan en la spec 00 / 01 cuando exista el código.
+Requiere [uv](https://docs.astral.sh/uv/); `uv sync` instala Python 3.12 y dependencias.
 
 ```bash
-make up        # docker compose up
 make test      # tests deterministas, sin API key
-make evals     # requiere ANTHROPIC_API_KEY en .env
-make lint
+make lint      # ruff check + format --check
+make dataset   # regenera data/*.json (determinista; no debe producir diff)
+make mock      # API mock del core en :8000
 ```
+
+Pendientes: `make up` (docker compose, cuando haya más de un servicio) y `make evals` (spec 04, requiere `ANTHROPIC_API_KEY` en `.env`).
 
 ## Reglas no negociables
 

@@ -5,7 +5,7 @@ Una spec por etapa, máximo una página. Ciclo: spec → commit → implementaci
 | # | Spec | Estado | Tiempo estimado |
 |---|------|--------|-----------------|
 | 00 | [Fundamentos](00-fundamentos.md) | activa | 20 min |
-| 01 | [Dominio y sistema simulado](01-dominio-dataset.md) | borrador | 45 min |
+| 01 | [Dominio y sistema simulado](01-dominio-dataset.md) | cerrada | 45 min |
 | 02 | Servidor MCP y frontera de seguridad | pendiente | 60 min |
 | 03 | RAG de políticas | pendiente | 40 min |
 | 04 | Casos de eval etiquetados | pendiente | 30 min |

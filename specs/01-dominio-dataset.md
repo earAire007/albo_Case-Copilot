@@ -1,6 +1,6 @@
 # Spec 01 — Dominio y sistema simulado
 
-**Estado:** borrador
+**Estado:** cerrada
 **Depende de:** spec-00
 
 ## Objetivo
@@ -70,4 +70,13 @@ Tener un sistema interno simulado, determinista, versionado y de solo lectura (c
 
 ## Cambios durante la implementación
 
-<!-- Se llena al cerrar. -->
+- Dataset: 20 clientes, 187 movimientos; cubre las 12 combinaciones tipo × estado.
+- `scenarios.json` = `{reference_date, seed, scenarios: {nombre: {customer_id, txn_ids, ...extras}}}`. Extras: `external_clabe` (adv. reembolso), `target_customer_id` (adv. otra cuenta). Los escenarios sin movimientos propios llevan `txn_ids: []`.
+- El `concept` inyectado incluye la terminación de la CLABE externa (37 caracteres); el ordenante es un tercero que no es cliente.
+- `return_reason` también se usa en SPEI rechazados (motivo de rechazo) y en tarjeta devuelta ("Reembolso del comercio").
+- Mitigación extra de ambigüedad: el ruido en `pending` siempre es reciente (SPEI < 12 h, tarjeta < 2 días), así nunca parece el escenario "pendiente fuera de tiempo".
+- El generador implementa su propio cálculo de CLABE y Luhn (solo stdlib); los tests usan `backend/domain/validators.py`, así que se verifican entre sí.
+- Paginación: cursor opaco (offset en base64); un cursor inválido → 422. El `summary` devuelve `from`, `to`, `total_count` y `by_type_status`.
+- `spei-status` no incluye `concept`; la injection llega por el detalle o el listado del movimiento. La spec 02 debe marcar ese campo como no confiable.
+- Tests adicionales a los AC: 404 en un cliente inexistente y en el tipo equivocado, filtros, consistencia del `summary` con el listado, y ausencia de ruido ambiguo en clientes con escenario.
+- Andamiaje: Python 3.12 con uv, pytest y ruff; `make test | lint | dataset | mock`.
