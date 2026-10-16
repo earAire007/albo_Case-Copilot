@@ -21,7 +21,7 @@ Invariantes definidas en `specs/00-fundamentos.md`. Cada una con los tests y con
 
 ### Riesgo residual y cómo se detecta en producción
 
-<!-- -->
+- **Sensores de desarrollo sin enforcement fuera de Claude Code.** Los hooks (`.claude/settings.json`) solo corren en esa herramienta; con otro agente o en la terminal, la única barrera es la regla de `AGENTS.md` de correr `make check` antes de cada commit. Pre-commit y CI quedaron fuera por tiempo (spec 01b). Detección: correr `make check` sobre `main` al revisar; con más tiempo, un job de CI con el mismo comando.
 
 ## Contexto y costos
 

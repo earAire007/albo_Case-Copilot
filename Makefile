@@ -1,4 +1,10 @@
-.PHONY: test lint check-docs dataset mock
+.PHONY: check test lint check-docs dataset mock
+
+# Run before every commit: Claude Code hooks don't run outside that tool.
+check:
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) check-docs
 
 test:
 	uv run pytest -q

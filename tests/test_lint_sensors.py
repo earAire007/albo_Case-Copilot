@@ -32,6 +32,17 @@ def test_pyright_accepts_well_typed_file(tmp_path):
     assert _pyright(good).returncode == 0
 
 
+def test_make_check_runs_lint_test_check_docs_in_order():
+    result = subprocess.run(
+        ["make", "-n", "check"], capture_output=True, text=True, cwd=REPO_ROOT, check=True
+    )
+    out = result.stdout
+    steps = ["ruff check", "pyright", "lint-imports", "pytest", "check_docs.py"]
+    positions = [out.find(step) for step in steps]
+    assert -1 not in positions, out
+    assert positions == sorted(positions), out
+
+
 def _lint_imports(root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run([str(BIN / "lint-imports")], capture_output=True, text=True, cwd=root)
 

@@ -9,12 +9,13 @@ Que las reglas no negociables se verifiquen con sensores automáticos durante el
 
 ## Fuera de alcance
 
-- CI y pre-commit de git.
+- CI y pre-commit de git, por tiempo: con 6–8 h, el presupuesto va a seguridad y evals. Sustituto: `make check` como regla de `AGENTS.md` antes de cada commit, válida para cualquier agente o persona. Riesgo residual (documentado en DESIGN.md): la regla se puede saltar; nada bloquea un commit en rojo fuera de Claude Code.
 - Enmascarado real: `mask()` es de la spec 02; aquí solo se **detecta**.
 - Reglas para el frontend (spec 07).
 
 ## Contratos
 
+- **`make check`** = `make lint` → `make test` → `make check-docs`, en ese orden. Es el único punto de verificación que no depende de la herramienta del agente.
 - **`make lint`** = `ruff check` + `ruff format --check` + `pyright` + `lint-imports`. Pyright en modo `standard` sobre `backend/`, `data/` y `tests/`, y en `strict` (lista `strict` de `[tool.pyright]`) sobre los módulos críticos (enmascarado, gate de aprobación, validador, executor) a medida que existan. Hoy la lista está vacía y cada spec que cree uno lo agrega.
 - **Hooks de Claude Code** (`.claude/settings.json`), en dos niveles:
   - `PostToolUse`, matcher `Edit|Write` → `.claude/hooks/ruff-on-edit.sh`: lee `tool_input.file_path` del JSON de stdin; si es `.py`, corre `ruff check` y `ruff format --check` solo sobre ese archivo; si falla, sale con 2 (feedback al agente). Si no es `.py`, sale con 0.
@@ -44,6 +45,7 @@ Que las reglas no negociables se verifiquen con sensores automáticos durante el
    - `ruff-on-edit.sh` sale con 0 para archivos que no son `.py` y con 2 para un `.py` con error de ruff;
    - `verify-on-stop.sh` sale con 2 si `make lint` o `make test` fallan y con 0 si `stop_hook_active` es `true`.
 6. `make check-docs` pasa sobre el repo actual y falla, con fixtures temporales, si la tabla de `DESIGN.md` nombra un test inexistente no marcado como pendiente, si una fila de `specs/README.md` enlaza a un archivo inexistente, si falta la fila de una spec o si los estados no coinciden.
+7. `make check` corre lint, test y check-docs en ese orden (`test_make_check_runs_lint_test_check_docs_in_order`, vía `make -n`).
 
 ## Riesgos y decisiones abiertas
 
