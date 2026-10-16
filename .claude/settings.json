@@ -8,9 +8,34 @@
     "allow": [
       "Bash(make test)",
       "Bash(make lint)",
+      "Bash(make check-docs)",
       "Bash(git status)",
       "Bash(git diff:*)",
       "Bash(git log:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/ruff-on-edit.sh\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/verify-on-stop.sh\"",
+            "timeout": 300
+          }
+        ]
+      }
     ]
   }
 }

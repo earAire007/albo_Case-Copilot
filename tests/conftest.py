@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+pytest_plugins = ["pytester", "tests.sensitive_logs"]
+
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 

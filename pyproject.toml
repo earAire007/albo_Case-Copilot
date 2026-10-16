@@ -12,6 +12,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "httpx>=0.27",
+    "import-linter>=2.15",
+    "pyright[nodejs]>=1.1.414",
     "pytest>=8.3",
     "ruff>=0.7",
 ]
@@ -22,6 +24,31 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.pyright]
+include = ["backend", "data", "tests", "scripts"]
+typeCheckingMode = "standard"
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
+# Critical modules (masking, approval gate, output validator, executor) join this list
+# as their specs create them.
+strict = []
+
+[tool.importlinter]
+root_package = "backend"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "mock_core layers: api -> repository -> domain"
+type = "layers"
+layers = ["backend.mock_core.api", "backend.mock_core.repository", "backend.domain"]
+
+[[tool.importlinter.contracts]]
+name = "domain is framework-free"
+type = "forbidden"
+source_modules = ["backend.domain"]
+forbidden_modules = ["fastapi", "uvicorn", "backend.mock_core"]
 
 [tool.ruff]
 line-length = 100
