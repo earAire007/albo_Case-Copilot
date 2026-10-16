@@ -37,28 +37,68 @@ def test_findings_never_carry_the_value(raw_customers):
     assert clabe not in repr(finding)
 
 
-def _run_inner(pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch, payload: str):
+def _run_inner(
+    pytester: pytest.Pytester,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    body: str,
+) -> pytest.RunResult:
     monkeypatch.setenv("PYTHONPATH", str(REPO_ROOT))
     pytester.makepyfile(
         test_inner=f"""
 import logging
+import sys
 
-def test_logs_payload():
-    logging.getLogger("app.inner").info("payload=%s", {payload!r})
+def test_inner():
+    {body}
 """
     )
-    # Subprocess: the outer autouse fixture must not see the inner session's logs.
-    return pytester.runpytest_subprocess("-p", "tests.sensitive_logs", "-q")
+    # Subprocess: the outer sensors must not see the inner session's logs.
+    result = pytester.runpytest_subprocess("-p", "tests.sensitive_logs", "-q")
+    # pytester echoes the inner output (which leaks on purpose) to this test's stdout;
+    # this test owns that output and asserts on it, so consume it.
+    capsys.readouterr()
+    return result
 
 
 @pytest.mark.parametrize("field", ["clabe", "card_number", "rfc", "curp"])
-def test_fixture_fails_on_raw_identifier(pytester, monkeypatch, raw_customers, field):
-    result = _run_inner(pytester, monkeypatch, raw_customers[0][field])
+def test_fixture_fails_on_raw_identifier(pytester, monkeypatch, capsys, raw_customers, field):
+    value = raw_customers[0][field]
+    body = f'logging.getLogger("app.inner").info("payload=%s", {value!r})'
+    result = _run_inner(pytester, monkeypatch, capsys, body)
     assert result.ret != 0
     result.stdout.fnmatch_lines(["*datos sensibles sin enmascarar*"])
 
 
 @pytest.mark.parametrize("payload", ["CLABE ****1234", INVALID_18_DIGITS, "txn_0001"])
-def test_fixture_passes_on_masked_or_invalid(pytester, monkeypatch, payload):
-    result = _run_inner(pytester, monkeypatch, payload)
+def test_fixture_passes_on_masked_or_invalid(pytester, monkeypatch, capsys, payload):
+    body = f'logging.getLogger("app.inner").info("payload=%s", {payload!r})'
+    result = _run_inner(pytester, monkeypatch, capsys, body)
+    assert result.ret == 0, result.stdout.str()
+
+
+def test_sensor_fails_on_print(pytester, monkeypatch, capsys, raw_customers):
+    body = f'print("clabe", {raw_customers[0]["clabe"]!r})'
+    result = _run_inner(pytester, monkeypatch, capsys, body)
+    assert result.ret != 0
+    result.stdout.fnmatch_lines(["*datos sensibles sin enmascarar en stdout*clabe*"])
+
+
+def test_sensor_fails_on_stderr(pytester, monkeypatch, capsys, raw_customers):
+    body = f'sys.stderr.write("clabe " + {raw_customers[0]["clabe"]!r} + "\\n")'
+    result = _run_inner(pytester, monkeypatch, capsys, body)
+    assert result.ret != 0
+    result.stdout.fnmatch_lines(["*datos sensibles sin enmascarar en stderr*clabe*"])
+
+
+def test_sensor_attributes_exception_message_leak(pytester, monkeypatch, capsys, raw_customers):
+    # The test fails anyway because it raises; the point is that the sensor names the leak.
+    body = f'raise ValueError("CLABE " + {raw_customers[0]["clabe"]!r})'
+    result = _run_inner(pytester, monkeypatch, capsys, body)
+    assert result.ret != 0
+    result.stdout.fnmatch_lines(["*datos sensibles sin enmascarar en excepción*clabe*"])
+
+
+def test_sensor_passes_on_masked_print(pytester, monkeypatch, capsys):
+    result = _run_inner(pytester, monkeypatch, capsys, 'print("CLABE ************5678")')
     assert result.ret == 0, result.stdout.str()

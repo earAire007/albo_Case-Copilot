@@ -21,7 +21,10 @@ Que las reglas no negociables se verifiquen con sensores automáticos durante el
   - `PostToolUse`, matcher `Edit|Write` → `.claude/hooks/ruff-on-edit.sh`: lee `tool_input.file_path` del JSON de stdin; si es `.py`, corre `ruff check` y `ruff format --check` solo sobre ese archivo; si falla, sale con 2 (feedback al agente). Si no es `.py`, sale con 0.
   - `Stop` → `.claude/hooks/verify-on-stop.sh`: corre `$VERIFY_ON_STOP_CMD` (por defecto `make lint && make test`; la variable existe para que los tests inyecten el comando sin recursión); si falla, sale con 2 y el agente recibe la salida y sigue trabajando. **Anti-bucle:** si el input trae `stop_hook_active: true` (ya se bloqueó una vez en este ciclo), reporta la falla en stderr y sale con 0 para no encerrar al agente.
 - **Detector** `backend/domain/sensitive.py`: `find_sensitive(text) -> list[Finding]` (tipo y posición, nunca el valor). Detecta CLABE (18 dígitos con dígito verificador válido), PAN (13–19 dígitos que pasan Luhn), RFC y CURP. Reutiliza `clabe_is_valid`, `luhn_is_valid`, `RFC_RE` y `CURP_RE` de `backend/domain/validators.py`. La spec 02 lo reutiliza para revisar trazas.
-- **Fixture global** (autouse, plugin `tests/sensitive_logs.py` registrado en `tests/conftest.py` vía `pytest_plugins`, para poder probarlo con `pytester`): agrega un handler al root logger y baja su nivel a `DEBUG` durante cada test (luego lo restaura); al terminar, hace fallar el test si `find_sensitive` encuentra algo en algún registro (mensaje formateado + `exc_text`). Sin marcador de excepción.
+- **Sensor de fugas en tests** (plugin `tests/sensitive_logs.py` registrado en `tests/conftest.py` vía `pytest_plugins`, para poder probarlo con `pytester`). Sin marcador de excepción.
+  - **Logs:** fixture autouse que agrega un handler al root logger y baja su nivel a `DEBUG` durante cada test (luego lo restaura); al terminar, falla si `find_sensitive` encuentra algo en algún registro (mensaje formateado + `exc_text`).
+  - **stdout, stderr y excepciones:** hookwrapper `pytest_runtest_makereport` que revisa las secciones capturadas y el `longrepr` de cada fase, y marca el reporte como fallido. No pide `capsys`/`capfd`, así que no choca con los tests que los usan.
+  - **Puntos ciegos:** salida que el propio test consume con `capsys.readouterr()` (el test se hace dueño de ella), corridas con `-s`, y excepciones atrapadas que nunca se imprimen ni se loguean.
 - **`/check-docs`** (`.claude/commands/check-docs.md`), híbrido; no edita nada, reporta y propone correcciones:
   - **Determinista:** `scripts/check_docs.py` (`make check-docs`, código ≠ 0 si falla) verifica que:
     1. cada test nombrado en la tabla de invariantes de `DESIGN.md` exista como `def test_…` en `tests/` o esté marcado "pendiente, spec NN";
@@ -57,7 +60,7 @@ Resueltas:
 
 Abiertas:
 - **Falsos positivos del detector:** números largos (claves de rastreo, ids). Mitigación: exigir dígito verificador o Luhn. Riesgo residual: un número al azar que pase el checksum (~10 %); se acepta, porque es preferible fallar de más.
-- **Límite del fixture:** solo cubre `logging`, no `print` ni trazas. Las trazas se cubren en la spec 05 con el mismo detector.
+- **Límite del sensor:** cubre logs, stdout, stderr y excepciones de los tests, no las trazas persistidas. Cuando existan trazas en SQLite, la spec 05 debe revisar también lo persistido (`test_persisted_traces_have_no_sensitive_data`, pendiente en la invariante 4 de DESIGN.md).
 
 ## Cambios durante la implementación
 
