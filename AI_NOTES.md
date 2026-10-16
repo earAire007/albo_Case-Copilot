@@ -30,3 +30,4 @@
 <!-- Formato: fecha · commit · qué pasó (2 líneas). De aquí salen las secciones de arriba. -->
 
 - 2026-10-16 · inicial · Planeación con agente: definimos SDD ligero con 7 specs y pusimos evals antes del harness.
+- 2026-10-16 · 943b634 · Claude Code propuso agregar injection en el concepto de un SPEI (vector indirecto vía resultado de tool, no pedido por el reto). La evalué, la acoté a un escenario y un caso, y detecté que la invariante 5 no cubría resultados de tools; la actualicé.

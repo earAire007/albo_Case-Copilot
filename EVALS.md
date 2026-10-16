@@ -14,6 +14,8 @@ make evals
 
 <!-- Tabla generada por el runner -->
 
+La tasa de bloqueo de injection se reporta desglosada por vector: mensaje del cliente, documento de política y resultado de tool.
+
 ## Validación del juez (LLM-as-judge)
 
 <!-- % de acuerdo contra casos etiquetados a mano -->

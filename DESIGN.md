@@ -16,7 +16,7 @@ Invariantes definidas en `specs/00-fundamentos.md`. Cada una con el test que la 
 | 2 | Planner/executor separados, gate humano en código | <!-- --> |
 | 3 | Scoping de `customer_id` por capacidad | <!-- --> |
 | 4 | Enmascarado de datos sensibles en la frontera | <!-- --> |
-| 5 | Contenido no confiable delimitado | <!-- --> |
+| 5 | Contenido no confiable delimitado | `test_validator_rejects_action_induced_by_tool_result_injection` (pendiente, spec 05) |
 | 6 | Groundedness verificada en código | <!-- --> |
 
 ### Riesgo residual y cómo se detecta en producción
