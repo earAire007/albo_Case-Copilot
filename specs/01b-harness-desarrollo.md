@@ -20,7 +20,12 @@ Que las reglas no negociables se verifiquen con sensores automáticos durante el
 - **Hooks de Claude Code** (`.claude/settings.json`), en dos niveles:
   - `PostToolUse`, matcher `Edit|Write` → `.claude/hooks/ruff-on-edit.sh`: lee `tool_input.file_path` del JSON de stdin; si es `.py`, corre `ruff check` y `ruff format --check` solo sobre ese archivo; si falla, sale con 2 (feedback al agente). Si no es `.py`, sale con 0.
   - `Stop` → `.claude/hooks/verify-on-stop.sh`: corre `$VERIFY_ON_STOP_CMD` (por defecto `make lint && make test`; la variable existe para que los tests inyecten el comando sin recursión); si falla, sale con 2 y el agente recibe la salida y sigue trabajando. **Anti-bucle:** si el input trae `stop_hook_active: true` (ya se bloqueó una vez en este ciclo), reporta la falla en stderr y sale con 0 para no encerrar al agente.
-- **Detector** `backend/domain/sensitive.py`: `find_sensitive(text) -> list[Finding]` (tipo y posición, nunca el valor). Detecta CLABE (18 dígitos con dígito verificador válido), PAN (13–19 dígitos que pasan Luhn), RFC y CURP. Reutiliza `clabe_is_valid`, `luhn_is_valid`, `RFC_RE` y `CURP_RE` de `backend/domain/validators.py`. La spec 02 lo reutiliza para revisar trazas.
+- **Detector** `backend/domain/sensitive.py`: `find_sensitive(text) -> list[Finding]` (tipo y posición, nunca el valor). Reutiliza `clabe_is_valid`, `luhn_is_valid`, `RFC_RE` y `CURP_RE` de `backend/domain/validators.py`. Es la base de `mask()` en la spec 02. Ante la duda, sobre-detecta:
+  - **CLABE / tarjeta:** tramos de 13–19 dígitos que pasan su checksum (dígito de control de CLABE si son 18; si no, Luhn). Un número de 18 dígitos que solo pasa Luhn se reporta como tarjeta.
+  - **Separadores:** se unen grupos separados por un solo espacio o guion (todos de ≥3 dígitos salvo el último, para cubrir 4-4-4-4 y 3-3-11-1) y se valida solo si el resultado mide 13–19.
+  - **`long_number`:** cualquier tramo contiguo de 20 o más dígitos. Sin ventanas deslizantes: en tramos largos alguna ventana pasaría un checksum por azar.
+  - **RFC y CURP:** solo patrón, sin dígito verificador. La dirección del error es falso positivo, aceptable para un sensor.
+  - **Clave de rastreo SPEI** (`CC` + 18 dígitos, formato del dataset): **no** es sensible; se necesita para consultar el estado del SPEI y reenviar el CEP. Es una excepción por formato exacto, no una regla genérica de "letras pegadas", que dejaría pasar una CLABE escrita pegada a texto.
 - **Sensor de fugas en tests** (plugin `tests/sensitive_logs.py` registrado en `tests/conftest.py` vía `pytest_plugins`, para poder probarlo con `pytester`). Sin marcador de excepción.
   - **Logs:** fixture autouse que agrega un handler al root logger y baja su nivel a `DEBUG` durante cada test (luego lo restaura); al terminar, falla si `find_sensitive` encuentra algo en algún registro (mensaje formateado + `exc_text`).
   - **stdout, stderr y excepciones:** hookwrapper `pytest_runtest_makereport` que revisa las secciones capturadas y el `longrepr` de cada fase, y marca el reporte como fallido. No pide `capsys`/`capfd`, así que no choca con los tests que los usan.
@@ -59,7 +64,10 @@ Resueltas:
 - **Hook en dos niveles.** `PostToolUse`: ruff solo sobre el `.py` editado (rápido, feedback inmediato). `Stop`: `make lint` y `make test` completos, con anti-bucle vía `stop_hook_active`. Razón: pyright y la suite completa son demasiado lentos por edición, pero ningún turno termina sin pasar por ellos; si la falla persiste tras un reintento, se reporta en lugar de encerrar al agente.
 
 Abiertas:
-- **Falsos positivos del detector:** números largos (claves de rastreo, ids). Mitigación: exigir dígito verificador o Luhn. Riesgo residual: un número al azar que pase el checksum (~10 %); se acepta, porque es preferible fallar de más.
+- **Errores del detector:**
+  - Falsos positivos aceptados: un número de 13–19 dígitos que pase un checksum por azar (~10 %), cualquier número de 20 o más dígitos, y formatos tipo RFC/CURP.
+  - Falsos negativos conocidos: una CLABE o tarjeta escrita como `CC` + 18 dígitos (cae en la excepción de clave de rastreo); grupos separados cuyo total no mide 13–19 aunque una parte sí lo haga (p. ej., una tarjeta seguida de más grupos); separadores distintos de un solo espacio o guion.
+  - Antes del ajuste, 17 de las 82 claves de rastreo del dataset se detectaban como CLABE o tarjeta.
 - **Límite del sensor:** cubre logs, stdout, stderr y excepciones de los tests, no las trazas persistidas. Cuando existan trazas en SQLite, la spec 05 debe revisar también lo persistido (`test_persisted_traces_have_no_sensitive_data`, pendiente en la invariante 4 de DESIGN.md).
 
 ## Cambios durante la implementación
