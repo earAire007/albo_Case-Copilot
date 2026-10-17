@@ -13,7 +13,6 @@ import functools
 import hashlib
 import json
 import math
-import os
 import re
 import subprocess
 import sys
@@ -29,6 +28,7 @@ from mcp import Client
 
 from backend.agent.model import ToolCallingModel
 from backend.agent.validators import CaseContext
+from backend.config import ConfigError, env_raw, parse
 from backend.mock_core.repository import JsonCoreRepository
 from backend.orchestrator.loop import LoopConfig, run_case
 from backend.orchestrator.mcp_session import McpToolSession
@@ -808,10 +808,13 @@ def main(argv: Sequence[str] | None = None) -> None:
             round_number=args.round,
         )
         return
-    max_usd = args.max_usd if args.max_usd is not None else os.environ.get("MAX_USD")
+    max_usd = args.max_usd if args.max_usd is not None else env_raw("MAX_USD")
     if not max_usd:
         parser.exit(2, "MAX_USD es obligatorio: declara el presupuesto antes de correr.\n")
-    budget = float(max_usd)
+    try:
+        budget = parse("MAX_USD", str(max_usd), float, "un número")
+    except ConfigError as exc:
+        parser.exit(2, f"{exc}\n")
     if args.judge:
         run_judge(budget, round_number=args.round, update_report=not args.no_report)
         return

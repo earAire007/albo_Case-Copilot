@@ -13,10 +13,9 @@
 - Thinking blocks are returned as OpaqueBlock and passed back unchanged.
 """
 
-import os
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Any, Literal, cast, get_args
 
 import anthropic
 from anthropic.types import MessageParam, OutputConfigParam, ToolParam
@@ -33,6 +32,7 @@ from backend.agent.model import (
     Usage,
 )
 from backend.agent.output import output_json_schema
+from backend.config import env_choice, env_float, env_int, env_str
 
 DEFAULT_MODEL = "claude-opus-5-5"
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
@@ -48,10 +48,10 @@ class LlmSettings:
     @classmethod
     def from_env(cls) -> "LlmSettings":
         return cls(
-            model=os.environ.get("MODEL", DEFAULT_MODEL),
-            effort=cast(Effort, os.environ.get("EFFORT", "medium")),
-            max_tokens=int(os.environ.get("MAX_OUTPUT_TOKENS", "16000")),
-            timeout_s=float(os.environ.get("LLM_TIMEOUT_S", "120")),
+            model=env_str("MODEL", DEFAULT_MODEL),
+            effort=cast(Effort, env_choice("EFFORT", "medium", get_args(Effort))),
+            max_tokens=env_int("MAX_OUTPUT_TOKENS", 16_000),
+            timeout_s=env_float("LLM_TIMEOUT_S", 120.0),
         )
 
 

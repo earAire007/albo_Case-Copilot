@@ -39,6 +39,7 @@ from backend.agent.model import (
 )
 from backend.agent.prompt import ACTION_TYPES, CASE_TYPES, SYSTEM, build_prompt, untrusted_block
 from backend.agent.validators import CaseContext, Rejection, ToolResult, evaluate
+from backend.config import env_float, env_int
 from backend.orchestrator.turn import TurnResult, conclude, record_rejections
 from backend.policies.retrieval import search_policies
 from backend.security.masking import Json
@@ -73,6 +74,17 @@ class LoopConfig:
     max_retries: int = 3
     base_delay_s: float = 1.0
     max_delay_s: float = 30.0
+
+    @classmethod
+    def from_env(cls) -> "LoopConfig":
+        # Prices verified against the official model table (claude-opus-5-5: $4 / $20 per
+        # MTok, 2026-10-06); override per variant in .env.
+        return cls(
+            price_input_per_mtok=env_float("PRICE_INPUT_PER_MTOK", 4.0),
+            price_output_per_mtok=env_float("PRICE_OUTPUT_PER_MTOK", 20.0),
+            max_tool_steps=env_int("MAX_TOOL_STEPS", cls.max_tool_steps),
+            max_case_tokens=env_int("MAX_CASE_TOKENS", cls.max_case_tokens),
+        )
 
 
 class ToolSession(Protocol):

@@ -13,7 +13,6 @@ operations console (spec 07) uses.
 import hashlib
 import json
 import logging
-import os
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -35,6 +34,7 @@ from backend.approval.service import (
     model_reply,
     reject,
 )
+from backend.config import ConfigError, env_str
 from backend.mock_core.repository import CoreRepository, JsonCoreRepository
 from backend.store.store import IdempotencyConflictError, Store
 
@@ -221,18 +221,21 @@ def _production_app(
     from backend.orchestrator.loop import LoopConfig
     from backend.worker.worker import run_once
 
-    store = store or Store()
-    repo = JsonCoreRepository()
-    model = model or AnthropicModel(LlmSettings.from_env())
+    try:
+        config = LoopConfig.from_env()
+        model = model or AnthropicModel(LlmSettings.from_env())
+        console = Path(env_str("CONSOLE_DIST", str(CONSOLE_DIST)))
+    except ConfigError as exc:
+        # One line naming the variable, no traceback: the operator fixes .env and restarts.
+        log.critical("Configuración inválida: %s", exc)
+        raise SystemExit(1) from None
     if not model.configured:
         log.warning(
             "Sin credenciales del modelo (ANTHROPIC_API_KEY): los casos se derivarán a "
             "revisión humana."
         )
-    config = LoopConfig(
-        price_input_per_mtok=float(os.environ.get("PRICE_INPUT_PER_MTOK", "4.0")),
-        price_output_per_mtok=float(os.environ.get("PRICE_OUTPUT_PER_MTOK", "20.0")),
-    )
+    store = store or Store()
+    repo = JsonCoreRepository()
 
     async def worker_loop() -> None:
         while True:
@@ -253,7 +256,6 @@ def _production_app(
 
     app = FastAPI(title="Copiloto de casos", lifespan=lifespan)
     app.mount("/api", create_app(store, repo))
-    console = Path(os.environ.get("CONSOLE_DIST", str(CONSOLE_DIST)))
     if console.is_dir():
         app.mount("/", StaticFiles(directory=console, html=True), name="console")
     return app
