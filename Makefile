@@ -29,4 +29,4 @@ mcp:
 
 # Real model, costs money, not deterministic: outside `make check`.
 smoke:
-	uv run python scripts/smoke.py
+	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python scripts/smoke.py

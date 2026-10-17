@@ -36,7 +36,7 @@ from backend.agent.model import (
     ToolSpec,
     TransientModelError,
 )
-from backend.agent.prompt import SYSTEM, build_prompt, untrusted_block
+from backend.agent.prompt import ACTION_TYPES, CASE_TYPES, SYSTEM, build_prompt, untrusted_block
 from backend.agent.validators import CaseContext, Rejection, ToolResult, evaluate
 from backend.orchestrator.turn import TurnResult, conclude, record_rejections
 from backend.policies.retrieval import search_policies
@@ -180,7 +180,9 @@ def _repair_note(rejections: Sequence[Rejection]) -> str:
     names = ", ".join(sorted({r.validator for r in rejections}))
     return (
         f"Tu respuesta anterior no cumplió el formato ({names}). Responde de nuevo solo con "
-        "el objeto JSON del esquema; si no citas políticas, marca no_support en true."
+        "el objeto JSON del esquema, sin bloques de código; si no citas políticas, marca "
+        f"no_support en true. case_type debe ser uno de: {CASE_TYPES}. action es null o "
+        f"tiene type igual a uno de: {ACTION_TYPES}."
     )
 
 

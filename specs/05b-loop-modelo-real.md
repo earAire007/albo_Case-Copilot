@@ -17,7 +17,7 @@ Conectar el harness determinista de la 05a con el modelo real: el loop de tool c
 
 - **Puerto del modelo** (`backend/agent/model.py`, puro): `ToolCallingModel.step(system, messages, tools) -> ModelStep(blocks, stop_reason, usage)`, con dataclasses propias. El adaptador `backend/llm/` traduce desde y hacia el SDK oficial de Anthropic.
 - **Adaptador:**
-  - modelo por defecto `claude-opus-5-5`, verificado en la referencia oficial de la API (tabla de modelos del 2026-10-06), con precios de $4 / $20 por millón de tokens de entrada / salida; modelo, esfuerzo (`EFFORT`, inicial `medium`, el valor por defecto de ese modelo), precios y timeout se configuran por entorno;
+  - modelo por defecto `claude-opus-5-5` (tabla de modelos de la referencia oficial de la API, 2026-10-06); precios de $4 / $20 por millón de tokens de entrada / salida, verificados el 2026-10-16 contra la página oficial de precios (https://platform.claude.com/docs/en/about-claude/pricing, fila "Claude Opus 5.5"); modelo, esfuerzo (`EFFORT`, inicial `medium`, el valor por defecto de ese modelo), precios y timeout se configuran por entorno;
   - `tool_choice` en `auto`, porque el modelo no acepta uno forzado;
   - el cliente se crea con `max_retries=0`: los reintentos son nuestros, para trazarlos e inyectar el sleep en los tests;
   - **sin fallbacks del servidor:** un `refusal` va a `requiere_humano`, con el motivo en la traza como señal.

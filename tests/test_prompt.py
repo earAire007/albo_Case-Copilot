@@ -2,6 +2,7 @@
 
 import json
 import re
+import typing
 from datetime import datetime
 
 import pytest
@@ -73,3 +74,40 @@ def test_delimiter_variants_cannot_close_block(variant):
     if variant.startswith("&"):
         # A pre-escaped entity arrives as literal text, never as a usable "&lt;".
         assert "&amp;lt;" in user or "&amp;amp;lt;" in user
+
+
+def test_system_prompt_lists_every_allowed_value():
+    """Generated from AgentOutput: a new enum value can never be missing from the prompt."""
+    from backend.agent.output import ActionType, CaseType
+    from backend.agent.prompt import SYSTEM
+
+    for value in (*typing.get_args(CaseType), *typing.get_args(ActionType)):
+        assert value in SYSTEM, value
+
+
+def test_output_json_schema_matches_model_and_api_limits():
+    from backend.agent.output import ActionType, AgentOutput, CaseType, output_json_schema
+
+    schema = output_json_schema()
+    dumped = json.dumps(schema)
+    assert set(schema["properties"]) == set(AgentOutput.model_fields)
+    assert set(schema["required"]) == set(AgentOutput.model_fields)
+    assert schema["properties"]["case_type"]["enum"] == list(typing.get_args(CaseType))
+    assert list(typing.get_args(ActionType)) in [
+        d.get("properties", {}).get("type", {}).get("enum")
+        for d in schema.get("$defs", {}).values()
+    ]
+    for key in ("minLength", "maxLength", "minimum", "maximum", "title", "default"):
+        assert f'"{key}"' not in dumped, key
+
+    def objects(node):
+        if isinstance(node, dict):
+            if node.get("type") == "object":
+                yield node
+            for v in node.values():
+                yield from objects(v)
+        elif isinstance(node, list):
+            for v in node:
+                yield from objects(v)
+
+    assert all(o.get("additionalProperties") is False for o in objects(schema))

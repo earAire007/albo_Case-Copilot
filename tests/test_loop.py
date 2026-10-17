@@ -416,3 +416,11 @@ def test_policy_signal_scans_only_new_results():
     assert [s["detected"] for s in signals] == [True, False], (
         "la segunda búsqueda no vuelve a contar el chunk envenenado de la primera"
     )
+
+
+def test_repair_note_lists_allowed_values_without_rejected_text():
+    model = FakeModel(final('{"case_type": "inventado"}'), final())
+    run(model)
+    note = json.dumps(model.requests[1]["messages"][-1], ensure_ascii=False)
+    assert "cargo_duplicado" in note and "open_dispute" in note
+    assert "inventado" not in note

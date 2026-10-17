@@ -16,6 +16,7 @@ from backend.agent.model import (
     ToolSpec,
     TransientModelError,
 )
+from backend.agent.output import output_json_schema
 from backend.llm.anthropic_client import AnthropicModel, LlmSettings
 
 SETTINGS = LlmSettings(model="claude-opus-5-5", effort="medium", max_tokens=16000, timeout_s=60.0)
@@ -47,7 +48,9 @@ def test_adapter_request_has_no_fallbacks_and_auto_tool_choice():
 
     kw = messages.kwargs
     assert kw["model"] == "claude-opus-5-5"
-    assert kw["output_config"] == {"effort": "medium"}
+    assert kw["output_config"]["effort"] == "medium"
+    fmt = kw["output_config"]["format"]
+    assert fmt["type"] == "json_schema" and fmt["schema"] == output_json_schema()
     assert kw["tool_choice"] == {"type": "auto"}
     assert "fallbacks" not in kw and "betas" not in kw
     assert kw["tools"] == [

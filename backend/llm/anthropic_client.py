@@ -5,6 +5,9 @@
   can be injected in tests. Retryable SDK errors become TransientModelError.
 - No server-side fallbacks on refusal (see DESIGN.md, trade-offs).
 - tool_choice "auto": the default model rejects forced tool choice.
+- Structured output (output_config.format, JSON schema of AgentOutput): the final answer
+  is schema-valid JSON. Documented as compatible with tools and thinking on
+  claude-opus-5-5. The validators and Pydantic still run on every output.
 - Thinking blocks are returned as OpaqueBlock and passed back unchanged.
 """
 
@@ -27,6 +30,7 @@ from backend.agent.model import (
     TransientModelError,
     Usage,
 )
+from backend.agent.output import output_json_schema
 
 DEFAULT_MODEL = "claude-opus-5-5"
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
@@ -86,7 +90,13 @@ class AnthropicModel:
             {"name": t.name, "description": t.description, "input_schema": dict(t.input_schema)}
             for t in tools
         ]
-        output_config: OutputConfigParam = {"effort": self.settings.effort}
+        output_config = cast(
+            OutputConfigParam,
+            {
+                "effort": self.settings.effort,
+                "format": {"type": "json_schema", "schema": output_json_schema()},
+            },
+        )
         try:
             response = await self.client.messages.create(
                 model=self.settings.model,
