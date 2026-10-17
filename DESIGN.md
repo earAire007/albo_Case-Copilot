@@ -13,6 +13,14 @@ Cuatro módulos con una frontera cada uno, vigilada por import-linter (spec 05a)
 
 El loop con el modelo real y el tool calling contra la sesión MCP del caso son de la spec 05b, y reemplazan al llamador de `run_turn`.
 
+Spec 06 agrega la entrada, la cola y el gate cerrado:
+
+- **`backend/app/`:** el webhook idempotente (`Idempotency-Key`, mensaje enmascarado en reposo) y la API de casos, traza y aprobación para la consola.
+- **`backend/worker/`:** cola en proceso sobre SQLite. Corre `run_case` con la sesión MCP del cliente del caso y no repite modelo ni propuesta en reintentos (`UNIQUE(case_id)`). No puede aprobar ni ejecutar.
+- **`backend/store/ledger.py`:** el único que escribe decisiones y ejecuciones. Lo protege un contrato (solo `backend.executor` y `backend.approval`), verifica la aprobación en la misma transacción y sus tablas son solo de inserción.
+- **`backend/approval/`:** aprobar (decisión más ejecución, idempotente) y rechazar, con estados terminales. No toca el modelo.
+- **El `Store` serializa sus operaciones con un `RLock`,** porque la API y el worker comparten una conexión.
+
 ## Modelo de defensa
 
 Invariantes definidas en `specs/00-fundamentos.md`. Cada una con los tests y contratos de arquitectura que la verifican. `(parcial: …)` indica qué parte cubre hoy; `(pendiente, spec NN)` indica qué spec la completa. `make check-docs` falla si una fila no tiene ni lo uno ni lo otro.
@@ -20,7 +28,7 @@ Invariantes definidas en `specs/00-fundamentos.md`. Cada una con los tests y con
 | # | Invariante | Tests y contratos |
 |---|------------|-------------------|
 | 1 | Sin capacidad de mover dinero | `test_mcp_exposes_no_money_moving_tool`; `test_mock_api_has_no_write_routes` |
-| 2 | Planner/executor separados, gate humano en código | `test_executor_requires_recorded_approval`, `test_validator_rejects_action_outside_enum`, `test_validator_rejects_txn_of_other_customer_present_in_results` (parcial: executor y validador; el registro de decisiones y ejecuciones sigue abierto vía `Store`); contrato `agent is pure: no store, executor, unmask, evals or API`; contrato `orchestrator never executes or unmasks`; contrato `registro de decisiones y ejecuciones solo desde el executor y el flujo de aprobación; el orquestador conserva solo propuestas y trazas` (pendiente, spec 06); `test_execution_requires_approval_in_same_transaction` (pendiente, spec 06: segunda capa ante evasiones del contrato) |
+| 2 | Planner/executor separados, gate humano en código | `test_executor_requires_recorded_approval`, `test_validator_rejects_action_outside_enum`, `test_validator_rejects_txn_of_other_customer_present_in_results`, `test_execution_requires_approval_in_same_transaction`, `test_ledger_tables_are_insert_only`, `test_concurrent_approve_and_reject_stay_consistent`; contrato `agent is pure: no store, executor, unmask, evals or API`; contrato `orchestrator never executes or unmasks`; contrato `ledger is protected: only the executor and the approval flow`; contrato `worker and orchestrator never approve or execute` |
 | 3 | Scoping de `customer_id` por capacidad | `test_mcp_tools_ignore_model_supplied_customer_id`, `test_other_account_scenario_is_unreachable`; `test_endpoints_never_return_other_customer_data` |
 | 4 | Enmascarado de datos sensibles en la frontera | `test_fixture_fails_on_raw_identifier`, `test_sensor_fails_on_print`, `test_sensor_fails_on_stderr`, `test_sensor_attributes_exception_message_leak` (parcial: logs, stdout, stderr y excepciones de tests); `test_mask_applied_before_model_and_traces`, `test_mask_reuses_detector_and_keeps_tracking_key`, `test_free_text_and_error_masking_through_mcp`, `test_non_mcp_errors_are_masked_over_stdio`; `test_persisted_traces_have_no_sensitive_data`, `test_store_masks_every_table`, `test_customer_message_is_masked_before_model`; contrato `unmask is protected` (solo `backend.executor`) |
 | 5 | Contenido no confiable (clientes, políticas, resultados de tools) delimitado | `test_validator_rejects_injected_action[customer_message\|policy_chunk\|tool_result]`, `test_delimiter_variants_cannot_close_block`; `test_untrusted_content_is_delimited` (parcial: chunks de política y campos de terceros del MCP); `test_untrusted_content_is_delimited_in_prompt` |
@@ -31,8 +39,8 @@ Invariantes definidas en `specs/00-fundamentos.md`. Cada una con los tests y con
 | Riesgo | Detección |
 |--------|-----------|
 | **Sensores de desarrollo sin enforcement fuera de Claude Code.** Los hooks (`.claude/settings.json`) solo corren en esa herramienta; con otro agente o en la terminal, la única barrera es la regla de `AGENTS.md` de correr `make check` antes de cada commit. Pre-commit y CI quedaron fuera por tiempo (spec 01b). | `make check` sobre `main` al revisar; con más tiempo, un job de CI con el mismo comando. |
-| **Hasta la spec 06, el gate de aprobación se puede saltar por la API del `Store`.** `record_decision` acepta cualquier `approver` y `record_execution` no verifica la aprobación: un módulo con un `Store` (incluido el orquestador) podría registrar una aprobación o una ejecución sin pasar por el executor. | Revisión de código; los pendientes de la invariante 2 (contrato `protected` y verificación en la misma transacción) lo cierran en la spec 06. |
-| **El webhook no autentica al emisor (sin firma HMAC; spec 06).** Cualquiera que alcance el endpoint puede crear casos. El impacto se limita a ruido y costo de modelo: un caso falso solo produce una propuesta que pasa por aprobación humana, y el `customer_id` debe existir. | Volumen anómalo de casos por emisor o por cliente; costo por hora del modelo. |
+| **El ledger se puede alterar con SQL crudo.** Las tablas `decisions` y `executions` son solo de inserción por triggers, pero desde `store.connection` se pueden borrar los triggers (`DROP TRIGGER`) y luego alterar el registro (spec 06). Requiere código malicioso o muy descuidado. | `test_decision_and_execution_writes_only_in_ledger` (guarda textual, incluye `DROP TRIGGER`); revisión de código. |
+| **El webhook no autentica al emisor (sin firma HMAC; spec 06).** Cualquiera que alcance el endpoint puede crear casos. El impacto se limita a ruido y costo de modelo: un caso falso solo produce una propuesta que pasa por aprobación humana, y el `customer_id` debe existir. Además, el 422 por `customer_id` inexistente permite enumerar clientes (los ids son secuenciales), y `GET /cases` y `/cases/{id}/trace` no tienen autenticación (spec 00). | Volumen anómalo de casos por emisor o por cliente; costo por hora del modelo. |
 | **El `approver` no se verifica (sin SSO; spec 06).** El cuerpo dice quién aprueba; solo se rechaza vacío. | Revisión de las decisiones registradas (quién, cuándo); con más tiempo, SSO. |
 | **El contrato de `unmask` se puede evadir.** import-linter solo ve imports estáticos: `importlib.import_module(...)` lo evade, y `tests/`, `scripts/` y `data/` no son paquetes raíz de import-linter (spec 02). | Revisión de código. Complemento: `test_unmask_token_only_in_allowed_modules` falla si el token `unmask` aparece fuera de su módulo en `backend/`, `mcp_server/`, `scripts/` o `data/` (no detecta un nombre construido por concatenación). |
 
@@ -96,8 +104,9 @@ La salida estructurada (`output_config.format`) hace raras las reparaciones: en 
 
 ## Qué se rompe a 10x casos o con diez agentes compartiendo herramientas
 
-<!-- -->
+- **La serialización de la aprobación (spec 06).** El `RLock` del `Store` serializa dentro de un solo proceso. Con varias réplicas de la API, o el worker en otro proceso, la carrera de aprobación vuelve: se repetiría la prueba de 300 rondas con respuestas incoherentes. La serialización debe bajar a la base de datos, con bloqueo de fila o una transacción serializable en un motor como Postgres. SQLite y la cola en proceso tampoco escalan a varios workers.
 
 ## Qué haría con más tiempo
 
+- **Mitigar la enumeración de clientes en el webhook** (spec 06): responder igual para `customer_id` existentes e inexistentes (202) y fallar de forma asíncrona en el worker (caso a `requires_human`), en lugar del 422 actual.
 - **Un caso de control sin injection por vector** (spec 04): A3 confunde la injection en el concepto con una política de CEP escrita desde quien paga. Con un control idéntico pero sin injection, una falla se atribuiría a la injection o a la interpretación de la política.

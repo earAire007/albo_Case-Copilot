@@ -1,6 +1,6 @@
 # Spec 06 — Webhook y procesamiento asíncrono
 
-**Estado:** borrador
+**Estado:** cerrada
 **Depende de:** spec-05a, spec-05b
 
 ## Objetivo
@@ -68,4 +68,14 @@ Resueltas:
 
 ## Cambios durante la implementación
 
-<!-- Se llena al cerrar. -->
+- `record_decision` y `record_execution` salieron de `Store` a `backend/store/ledger.py`. Los tests del gate solo cambiaron la forma de llamar al código, con el diff revisado por el usuario y el mismo número de aserciones (12 y 17).
+- `conclude` traza `answer` (case_type y customer_reply) para la vista de la consola, y pasa el `customer_id` del contexto a la propuesta.
+- security-reviewer: bloqueó una vez.
+  - La conexión SQLite compartida entre el pool de hilos de la API y el worker mezclaba transacciones: 267 de 300 rondas concurrentes con excepciones, y 25 donde la API respondía "rechazada" con otra decisión registrada. Se resolvió con un `RLock` que serializa el `Store` y las secuencias del ledger y la aprobación, más un test de concurrencia.
+  - El ledger se podía alterar con SQL crudo: se agregaron triggers solo de inserción con `recursive_triggers` y una guarda de texto ampliada.
+  - Tras los arreglos dio OK, con la prueba de 300 rondas limpia.
+- A 10x, el `RLock` no basta: con varios procesos, la serialización debe bajar a la base de datos (DESIGN.md).
+- Hallazgos menores resueltos: un caso con propuesta que quedaba en `queued`; un job colgado que se reprocesaba sin límite; tests que no ejercitaban el filtro de `prompt` ni el salto de casos terminados.
+- Correcciones a tests propios: cuerpos de petición por endpoint en las transiciones terminales; filas reales en el test de solo inserción.
+- Opcional hecho: guarda de texto de escrituras al ledger fuera de `ledger.py`, incluido `DROP TRIGGER`.
+- La edición de la respuesta pasa al inicio de la spec 07, como endpoint persistente.
