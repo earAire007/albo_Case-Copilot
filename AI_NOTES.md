@@ -17,7 +17,11 @@
 
 ## Un error del agente que detecté
 
-<!-- Qué fue y cómo me di cuenta -->
+**Qué fue.** En la spec 02, el agente endureció el servidor MCP para que cualquier excepción inesperada saliera como un `Internal server error` genérico. Para no perder el diagnóstico, agregó `_logger.exception(...)` en un logger propio (`mcp_server.server`). Ese logger no tenía el filtro de enmascarado que sí tenían los del SDK, y el traceback llevaba la CLABE del cliente en claro. Era una fuga de datos sensibles a logs, justo lo que prohíbe la invariante 4.
+
+**Cómo me di cuenta.** No me di cuenta yo: se dio cuenta el sistema que construimos para eso. El sensor de fugas de la spec 01b (un plugin de pytest que revisa logs, stdout, stderr y excepciones de cada test) hizo fallar el test en el teardown, antes del commit. Ninguna aserción buscaba ese caso; falló un sensor genérico. La corrección fue instalar el filtro también en ese logger (commit `0790ba5`).
+
+**Qué me deja.** Es la prueba concreta de que la spec 01b valía lo que costó: los sensores computacionales atrapan errores que nadie pensó en probar, incluidos los del agente que escribe el código.
 
 ## Qué NO delegué a ciegas
 
