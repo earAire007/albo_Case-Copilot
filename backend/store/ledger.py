@@ -21,17 +21,27 @@ class NotApprovedError(PermissionError):
     pass
 
 
-def record_decision(store: Store, proposal_id: int, *, approver: str, decision: Decision) -> None:
+def record_decision(
+    store: Store,
+    proposal_id: int,
+    *,
+    approver: str,
+    decision: Decision,
+    reply_snapshot: str | None = None,
+) -> None:
+    """`reply_snapshot` (spec 07) is the reply in force when deciding, masked."""
     if not approver.strip():
         raise ValueError("approver vacío")
+    snapshot = None if reply_snapshot is None else mask_text(reply_snapshot)
     with store.lock:
         store.get_proposal(proposal_id)
         try:
             with store.connection:
                 store.connection.execute(
-                    "INSERT INTO decisions (proposal_id, approver, decision, decided_at)"
-                    " VALUES (?, ?, ?, ?)",
-                    (proposal_id, mask_text(approver.strip()), decision, now_iso()),
+                    "INSERT INTO decisions"
+                    " (proposal_id, approver, decision, reply_snapshot, decided_at)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    (proposal_id, mask_text(approver.strip()), decision, snapshot, now_iso()),
                 )
         except sqlite3.IntegrityError as exc:
             raise ValueError(

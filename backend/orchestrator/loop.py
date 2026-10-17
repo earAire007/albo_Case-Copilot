@@ -172,6 +172,8 @@ async def _run_tool(
     except json.JSONDecodeError:
         return True, untrusted_block(source, "la herramienta devolvió una respuesta inválida")
     state.tool_results.append(ToolResult(call.name, dict(call.input), payload))
+    # Spec 07: the console shows it, and the reply edit exempts only tracking keys found here.
+    store.add_trace(ctx.case_id, "tool_result", {"tool": call.name, "payload": payload})
     _signal(store, ctx, "tool_result", text)
     return False, untrusted_block(source, text)
 

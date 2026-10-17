@@ -45,6 +45,7 @@ strict = [
     "backend/security/masking.py",
     "backend/security/unmask.py",
     "backend/security/untrusted.py",
+    "backend/security/digits.py",
     "backend/agent/validators.py",
     "backend/agent/prompt.py",
     "backend/executor/executor.py",

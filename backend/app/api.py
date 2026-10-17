@@ -6,6 +6,7 @@ operations console (spec 07) uses.
 - Approval: approve = decision + execution in one call (the executor is idempotent);
   terminal states; empty approver -> 422. The approver is not authenticated (residual
   risk, see DESIGN.md).
+- Reply edit (spec 07): `PUT /cases/{id}/reply`, rules in backend.approval (422/404/409).
 - Case views expose masked data only, never thinking blocks.
 """
 
@@ -21,7 +22,15 @@ import anyio
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from backend.approval.service import ConflictError, approve, decision_of, reject
+from backend.approval.service import (
+    ConflictError,
+    approve,
+    decision_of,
+    edit_reply,
+    execution_of,
+    model_reply,
+    reject,
+)
 from backend.mock_core.repository import CoreRepository, JsonCoreRepository
 from backend.store.store import IdempotencyConflictError, Store
 
@@ -39,6 +48,12 @@ class TicketIn(BaseModel):
 class ApproveIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     approver: str
+
+
+class ReplyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    editor: str
+    final_reply: str
 
 
 class RejectIn(BaseModel):
@@ -69,7 +84,10 @@ def _case_view(store: Store, case: dict[str, Any]) -> dict[str, Any]:
         "as_of": case["as_of"],
         "message": case["message"],
         "case_type": answer.get("case_type"),
-        "reply": answer.get("customer_reply"),
+        "reply": model_reply(store, case["id"]),
+        "final_reply": case["final_reply"],
+        "edited_by": case["edited_by"],
+        "edited_at": case["edited_at"],
         "reasoning_summary": summary.get("text"),
         "proposal": None
         if proposal is None
@@ -79,6 +97,7 @@ def _case_view(store: Store, case: dict[str, Any]) -> dict[str, Any]:
             "txn_id": proposal["txn_id"],
             "justification": proposal["justification"],
             "decision": decision_of(store, proposal["id"]),
+            "execution": execution_of(store, proposal["id"]),
         },
     }
 
@@ -147,6 +166,17 @@ def create_app(
             for t in store.traces(case_id)
             if t["step"] not in _HIDDEN_TRACE_STEPS
         ]  # fmt: skip
+
+    @app.put("/cases/{case_id}/reply")
+    def put_reply(case_id: str, body: ReplyIn) -> dict[str, Any]:
+        try:
+            return _case_view(store, edit_reply(store, case_id, body.editor, body.final_reply))
+        except KeyError:
+            raise HTTPException(404, "caso inexistente") from None
+        except ConflictError as exc:
+            raise HTTPException(409, str(exc)) from None
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
 
     @app.post("/proposals/{proposal_id}/approve")
     def approve_proposal(proposal_id: int, body: ApproveIn) -> dict[str, Any]:

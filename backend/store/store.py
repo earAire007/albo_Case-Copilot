@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS cases (
     message TEXT NOT NULL,
     as_of TEXT NOT NULL,
     status TEXT NOT NULL,
+    final_reply TEXT,
+    edited_by TEXT,
+    edited_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -56,6 +59,7 @@ CREATE TABLE IF NOT EXISTS decisions (
     proposal_id INTEGER PRIMARY KEY REFERENCES proposals(id),
     approver TEXT NOT NULL,
     decision TEXT NOT NULL CHECK (decision IN ('approved', 'rejected')),
+    reply_snapshot TEXT,
     decided_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS executions (
@@ -80,6 +84,8 @@ CREATE TABLE IF NOT EXISTS traces (
     created_at TEXT NOT NULL
 );
 """
+# Bump on every schema change: there are no migrations, an outdated database is refused.
+SCHEMA_VERSION = 1  # spec 07: final_reply, edited_by, edited_at, reply_snapshot
 _TABLES = ("cases", "jobs", "proposals", "decisions", "executions", "traces")
 
 
@@ -101,6 +107,22 @@ def now_iso() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+class OutdatedSchemaError(RuntimeError):
+    pass
+
+
+def _check_schema_version(db: sqlite3.Connection) -> None:
+    version = db.execute("PRAGMA user_version").fetchone()[0]
+    has_tables = db.execute("SELECT 1 FROM sqlite_master WHERE type = 'table'").fetchone()
+    if version == SCHEMA_VERSION or (version == 0 and has_tables is None):
+        return
+    db.close()
+    raise OutdatedSchemaError(
+        f"esquema desactualizado: borra var/copilot.db (versión {version},"
+        f" se esperaba {SCHEMA_VERSION})"
+    )
+
+
 class IdempotencyConflictError(ValueError):
     """Same idempotency key, different body."""
 
@@ -116,7 +138,9 @@ class Store:
         self._db.row_factory = sqlite3.Row
         # REPLACE deletes the conflicting row; this makes it fire the insert-only triggers.
         self._db.execute("PRAGMA recursive_triggers = ON")
+        _check_schema_version(self._db)
         self._db.executescript(_SCHEMA)
+        self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     @property
     def connection(self) -> sqlite3.Connection:
@@ -199,6 +223,20 @@ class Store:
                 "UPDATE cases SET status = ?, updated_at = ? WHERE id = ?",
                 (status, now_iso(), case_id),
             )
+
+    @_locked
+    def set_final_reply(self, case_id: str, final_reply: str, *, editor: str) -> None:
+        """Human edit of the reply (spec 07). Callers validate first (backend.approval);
+        masking here is the backstop, as in every free-text column."""
+        stamp = now_iso()
+        with self._db:
+            cursor = self._db.execute(
+                "UPDATE cases SET final_reply = ?, edited_by = ?, edited_at = ?, updated_at = ?"
+                " WHERE id = ?",
+                (mask_text(final_reply), mask_text(editor), stamp, stamp, case_id),
+            )
+        if cursor.rowcount == 0:
+            raise KeyError(case_id)
 
     @_locked
     def requeue_stuck_jobs(self, *, older_than: datetime, max_attempts: int) -> int:

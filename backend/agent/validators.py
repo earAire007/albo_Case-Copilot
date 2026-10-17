@@ -12,13 +12,9 @@ from datetime import datetime
 from decimal import Decimal
 
 from backend.agent.output import AgentOutput, OutputSchemaError, parse_output
-from backend.domain.sensitive import TRACKING_KEY_RE
+from backend.security.digits import has_digit_run, tracking_keys
+from backend.security.digits import walk as _walk
 
-# 13+ digits joined by any mix of whitespace (incl. NBSP and newlines), dots, hyphens,
-# slashes or underscores, or split by a short word ("646180 y 522488216773"). No checksum:
-# an invented number probably would not pass one, and the 01b detector would miss it.
-_SEP = r"(?:[\s.\-/_]+|\s+[^\W\d_]{1,3}\s+)?"
-_DIGIT_RUN = re.compile(rf"\d(?:{_SEP}\d){{12,}}")
 _AMOUNT = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?")
 _TXN_ID = re.compile(r"\btxn_\d{4}\b")
 _CENTS = Decimal("0.01")
@@ -43,19 +39,6 @@ class ToolResult:
 class Rejection:
     validator: str
     reason: str
-
-
-def _walk(value: object) -> list[Mapping[str, object]]:
-    found: list[Mapping[str, object]] = []
-    if isinstance(value, Mapping):
-        mapping: Mapping[str, object] = value  # pyright: ignore[reportUnknownVariableType]
-        found.append(mapping)
-        for item in mapping.values():
-            found.extend(_walk(item))
-    elif isinstance(value, list):
-        for item in value:  # pyright: ignore[reportUnknownVariableType]
-            found.extend(_walk(item))  # pyright: ignore[reportUnknownArgumentType]
-    return found
 
 
 def _known_txns(tool_results: Sequence[ToolResult]) -> dict[str, str]:
@@ -108,27 +91,14 @@ def check_citations(output: AgentOutput, chunk_ids: Collection[str]) -> list[Rej
     ]
 
 
-def _tracking_keys(tool_results: Sequence[ToolResult]) -> set[str]:
-    keys: set[str] = set()
-    for result in tool_results:
-        for node in _walk(result.payload):
-            key = node.get("tracking_key")
-            if isinstance(key, str) and TRACKING_KEY_RE.fullmatch(key):
-                keys.add(key)
-    return keys
-
-
 def check_digits(output: AgentOutput, tools: Sequence[ToolResult]) -> list[Rejection]:
     """Only tracking keys that this case's tools returned are exempt, never the format."""
     texts = [output.customer_reply, output.reasoning_summary]
     if output.action is not None:
         texts.append(output.action.justification)
-    exempt = _tracking_keys(tools)
-    for text in texts:
-        for key in exempt:
-            text = text.replace(key, "")
-        if _DIGIT_RUN.search(text):
-            return [Rejection("digits", "la salida contiene un tramo de 13 o más dígitos")]
+    exempt = tracking_keys(result.payload for result in tools)
+    if any(has_digit_run(text, exempt) for text in texts):
+        return [Rejection("digits", "la salida contiene un tramo de 13 o más dígitos")]
     return []
 
 
