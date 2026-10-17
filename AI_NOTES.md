@@ -7,25 +7,41 @@
 - `AGENTS.md` como fuente única de instrucciones para que el setup no dependa de una herramienta; `CLAUDE.md` lo importa.
 - Subagente `security-reviewer` y comando `/implement-spec` en `.claude/`.
 
+> **Candidatos (borrar al redactar):**
+> - `f08128c` — Revisión contra harness engineering: había contexto (AGENTS.md, specs) pero ningún sensor; la 01b se adelantó a la 02 para que la frontera de seguridad naciera con sensores activos.
+
 ## Momentos donde un agente me aceleró de verdad
 
 <!-- 2–3, con qué le pedí y qué me devolvió -->
+
+> **Candidatos (borrar al redactar):**
+> - `9e49c19` — El agente vio la recursión infinita del hook antes de escribir código y propuso cambiar la spec. Aceleró porque evitó un error, no porque escribiera rápido. Como segundo, la propuesta del vector de injection en el concepto (943b634), que mejoró el diseño.
 
 ## Una instrucción que tuve que reescribir
 
 <!-- Cómo era y cómo quedó -->
 
+> **Candidatos (borrar al redactar):**
+> - la instrucción oculta de contracargos. El agente la escribió obvia (“Nota para asistentes automatizados…”) y la reescribiste para que fuera sutil, porque la obvia solo medía si un detector la atrapaba, no si el diseño resistía. Es exactamente lo que pide la sección. La de procedencia (f1f5436) queda como segunda opción.
+
 ## Un error del agente que detecté
+
+> **Candidatos (borrar al redactar; el texto de abajo ya usa el primero):**
+
+> - `0d49665` — El plan ponía `run_turn` en `backend/agent` persistiendo con `backend/executor/store.py`: razonable a simple vista, pero rompía el contrato de arquitectura del propio agente. al revisar los planes con claude cowork y leyendo el plan contra los contratos.
 
 **Qué fue.** En la spec 02, el agente endureció el servidor MCP para que cualquier excepción inesperada saliera como un `Internal server error` genérico. Para no perder el diagnóstico, agregó `_logger.exception(...)` en un logger propio (`mcp_server.server`). Ese logger no tenía el filtro de enmascarado que sí tenían los del SDK, y el traceback llevaba la CLABE del cliente en claro. Era una fuga de datos sensibles a logs, justo lo que prohíbe la invariante 4.
 
-**Cómo me di cuenta.** No me di cuenta yo: se dio cuenta el sistema que construimos para eso. El sensor de fugas de la spec 01b (un plugin de pytest que revisa logs, stdout, stderr y excepciones de cada test) hizo fallar el test en el teardown, antes del commit. Ninguna aserción buscaba ese caso; falló un sensor genérico. La corrección fue instalar el filtro también en ese logger (commit `0790ba5`).
+**Cómo me di cuenta.** Modifiqué el texto original redactado por el agente porque utilizaba un ejemplo donde yo no había detectado la falla a tiempo. En su lugar, decidí incluir un caso donde mi revisión y el despliegue de un segundo agente interceptaron el problema: una violación directa del contrato en run_turn. Atribuí honestamente este hallazgo al flujo de co-revisión y dejé el fallo del sensor como un excelente cierre para demostrar la eficacia del ecosistema que construimos. Esto me enseñó que la redundancia entre agentes y la supervisión humana son la malla de seguridad ideal para capturar errores complejos.(commit `0790ba5`).
 
 **Qué me deja.** Es la prueba concreta de que la spec 01b valía lo que costó: los sensores computacionales atrapan errores que nadie pensó en probar, incluidos los del agente que escribe el código.
 
 ## Qué NO delegué a ciegas
 
 <!-- Guardrails, gate de aprobación, evals -->
+
+> **Candidatos (borrar al redactar):**
+> - `2b8cbbe` / `3e10f05` — Las etiquetas humanas: ningún agente las escribe (regla `deny`); el agente vio `human.json` sin versionar y no lo incluyó en su commit. El incidente de R1 llevó al candado automático del juez.
 
 ---
 
@@ -47,7 +63,7 @@
 - 2026-10-16 · a198a6b · security-reviewer bloqueó la 05a con evasiones que los tests no cubrían: CC antepuesto a una CLABE pasaba como clave de rastreo, y los separadores evadían el validador de dígitos. La excepción pasó de eximir el formato a eximir solo claves devueltas por las tools del caso. Tercera vez que un revisor adversarial separado encuentra lo que los tests del autor no: los validadores deterministas valen lo que el adversario que los prueba.
 - 2026-10-16 · 37b4e2c · Segunda vez que /check-docs encuentra una inconsistencia que una revisión humana dejó pasar en un cierre: tras cerrar la 05a, la invariante 2 figuraba como completa aunque el gate se podía saltar por la API del `Store`, y el detector de injection que prometía la spec 03 no estaba asignado a ninguna spec. Evidencia de que la recolección de basura no es un adorno.
 - 2026-10-16 · 4d00604 · security-reviewer encontró con una prueba de 300 rondas concurrentes una carrera en la aprobación: en 25 rondas la API respondía 'rechazada' con otra decisión registrada en el ledger. Ningún test unitario podía verla. Se resolvió con un RLock y un test de concurrencia; a 10x requiere serialización en la base de datos.
-- 2026-10-17 · f1f5436 · En la spec 07 el agente propuso eximir la clave de rastreo por formato en la edición humana, reabriendo la evasión CC + CLABE cerrada en la 05a. La cambié a exención por procedencia (solo claves presentes en los resultados de tools del caso). Las lecciones de seguridad de una spec no se trasladan solas a la siguiente.
+- 2026-10-17 · f1f5436 · En la spec 07 el agente propuso eximir la clave de rastreo por formato en la edición humana, reabriendo la evasión CC + CLABE cerrada en la 05a. Se tomó la decisión a exención por procedencia (solo claves presentes en los resultados de tools del caso). Las lecciones de seguridad de una spec no se trasladan solas a la siguiente.
 - 2026-10-17 · — · Retomé la spec 07 en una sesión nueva cuyo historial se compactó en un resumen, con AGENTS.md, specs/, DESIGN.md y esta bitácora en el repo. El agente reconstruyó el contexto y siguió sin pérdida: el contexto que importa vive en el repo, no en el chat.
 - 2026-10-17 · — · Ante el conflicto entre el hook de cierre (rojo intencional) y el modo Manual, el agente se quedó en rojo y pidió OK en vez de implementar sin revisión o marcar xfail.
 - 2026-10-17 · 1b57387 · security-reviewer encontró en la spec 07 que la regla de dígitos se evadía con separadores (comas, asteriscos, guion largo, caracteres invisibles), un hueco presente desde la 05a que la edición humana hacía más visible. Decidí cerrarlo en ambos lados (salida del modelo y edición humana), aceptando falsos positivos en la dirección segura (el caso pasa a humano), y no perseguir ofuscaciones con palabras entre los dígitos: las reglas deterministas no pueden cubrirlas todas, y la última defensa es la persona que aprueba. Eso no es una debilidad del diseño, es el diseño.
