@@ -32,6 +32,8 @@ Invariantes definidas en `specs/00-fundamentos.md`. Cada una con los tests y con
 |--------|-----------|
 | **Sensores de desarrollo sin enforcement fuera de Claude Code.** Los hooks (`.claude/settings.json`) solo corren en esa herramienta; con otro agente o en la terminal, la única barrera es la regla de `AGENTS.md` de correr `make check` antes de cada commit. Pre-commit y CI quedaron fuera por tiempo (spec 01b). | `make check` sobre `main` al revisar; con más tiempo, un job de CI con el mismo comando. |
 | **Hasta la spec 06, el gate de aprobación se puede saltar por la API del `Store`.** `record_decision` acepta cualquier `approver` y `record_execution` no verifica la aprobación: un módulo con un `Store` (incluido el orquestador) podría registrar una aprobación o una ejecución sin pasar por el executor. | Revisión de código; los pendientes de la invariante 2 (contrato `protected` y verificación en la misma transacción) lo cierran en la spec 06. |
+| **El webhook no autentica al emisor (sin firma HMAC; spec 06).** Cualquiera que alcance el endpoint puede crear casos. El impacto se limita a ruido y costo de modelo: un caso falso solo produce una propuesta que pasa por aprobación humana, y el `customer_id` debe existir. | Volumen anómalo de casos por emisor o por cliente; costo por hora del modelo. |
+| **El `approver` no se verifica (sin SSO; spec 06).** El cuerpo dice quién aprueba; solo se rechaza vacío. | Revisión de las decisiones registradas (quién, cuándo); con más tiempo, SSO. |
 | **El contrato de `unmask` se puede evadir.** import-linter solo ve imports estáticos: `importlib.import_module(...)` lo evade, y `tests/`, `scripts/` y `data/` no son paquetes raíz de import-linter (spec 02). | Revisión de código. Complemento: `test_unmask_token_only_in_allowed_modules` falla si el token `unmask` aparece fuera de su módulo en `backend/`, `mcp_server/`, `scripts/` o `data/` (no detecta un nombre construido por concatenación). |
 
 ### Detección de datos sensibles
@@ -84,6 +86,7 @@ La salida estructurada (`output_config.format`) hace raras las reparaciones: en 
 
 ## Trade-offs y decisiones
 
+- **Minimización de datos en reposo (spec 06):** del mensaje del cliente solo se guarda la versión enmascarada. El original no se conserva: ninguna acción lo necesita, y el prompt ya lo enmascaraba.
 - **Sin fallbacks del servidor ante rechazos del modelo** (spec 05b). En este sistema, un rechazo es más probable ante contenido adversarial, y reintentar con otro modelo sería buscar uno que acepte la injection. El rechazo va a `requiere_humano` y queda como señal en la traza. Los fallbacks pueden ser una variante en la comparación del cierre.
 - **Loop propio y delgado sobre el SDK del proveedor, no un framework de agentes** (spec 05a; resuelve el pendiente de la spec 00). El harness necesita controlar qué entra al contexto, la sesión MCP fijada al cliente, el enmascarado de entrada y las trazas por paso; un framework se interpone justo en esas costuras.
 

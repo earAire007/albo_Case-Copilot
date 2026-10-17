@@ -12,7 +12,7 @@ Una spec por etapa, máximo una página. Ciclo: spec → commit → implementaci
 | 04 | [Casos de eval etiquetados](04-casos-eval.md) | cerrada | 30 min (real: ~30 min, 19:51–20:22 según commits) |
 | 05a | [Harness determinista](05a-harness-determinista.md) | cerrada | 70 min (real: ~16 min de implementación, 20:30–20:46 según commits; incluye 2 pasadas del security-reviewer) |
 | 05b | [Loop con el modelo real](05b-loop-modelo-real.md) | cerrada | 50 min (real: ~42 min, 22:33–23:15 según commits; incluye 3 pasadas del security-reviewer y 2 corridas de humo) |
-| 06 | Webhook y procesamiento asíncrono | pendiente | 40 min |
+| 06 | [Webhook y procesamiento asíncrono](06-webhook-async.md) | borrador | 70 min |
 | 07 | Consola de operaciones | pendiente | 60 min |
 | — | Cierre: runner + comparación de variantes, DESIGN, EVALS, PLAYBOOK, AI_NOTES | pendiente | 1 h |
 
