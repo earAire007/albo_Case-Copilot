@@ -1,7 +1,8 @@
 """MCP server over the simulated core (spec 02). Security boundary toward the agent.
 
 - Capability scoping: each server instance is bound to one customer when created; no
-  tool accepts or exposes a customer_id, so the model can neither see nor choose it.
+  tool accepts a customer_id, so the model cannot choose it. Responses carry only the
+  bound customer's own id, never another customer's.
 - Read-only: four tools, all annotated readOnlyHint. Nothing writes or moves money.
 - Every response goes through the same path: domain model -> dict -> third-party text
   wrapped as untrusted -> mask(). A foreign, wrong-type or unknown txn_id yields the

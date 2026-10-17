@@ -1,6 +1,6 @@
 # Spec 02 — Servidor MCP y frontera de seguridad
 
-**Estado:** borrador
+**Estado:** cerrada
 **Depende de:** spec-01, spec-01b
 
 ## Objetivo
@@ -67,4 +67,12 @@ Riesgos:
 
 ## Cambios durante la implementación
 
-<!-- Se llena al cerrar. -->
+- SDK `mcp` 2.x: `MCPServer` (antes `FastMCP`). Filtros de fecha `date_from`/`date_to` (`from` es palabra reservada); una fecha sin zona se lee como -06:00.
+- AC7 se prueba con `limit=3`: ningún cliente del dataset tiene más de 20 movimientos.
+- Hallazgos del `security-reviewer`, resueltos con tests y verificados con mutaciones:
+  - Middleware de frontera en **todos** los métodos: rechaza argumentos fuera del esquema (un `customer_id` extra da error), enmascara resultados y errores, y convierte cualquier excepción que no sea `MCPError` en `Internal server error` (por stdio, el dispatcher repetía `str(exc)`).
+  - Filtro de logs en `mcp.*` y en el logger propio: enmascara mensaje, traceback y stack; si falla, redacta el mensaje completo (falla cerrado).
+  - `tracking_key` exenta solo por formato, no por nombre de campo. `mask()` trata como texto los enteros de 13+ dígitos.
+  - `test_mask_applied_before_model_and_traces` recorre las tools de `list_tools`, prueba argumentos inválidos y usa como oráculo los valores reales del cliente.
+- `unmask`: contrato `protected` sin importadores permitidos (import-linter acepta la lista vacía) y guarda textual `test_unmask_token_only_in_allowed_modules`. La evasión vía `importlib` queda como riesgo residual en DESIGN.md.
+- El sensor de fugas de la spec 01b detectó una fuga introducida durante la implementación (traceback en el logger propio).
