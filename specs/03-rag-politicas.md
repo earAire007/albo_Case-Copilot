@@ -1,6 +1,6 @@
 # Spec 03 — RAG de políticas
 
-**Estado:** borrador
+**Estado:** cerrada
 **Depende de:** spec-01b, spec-02
 
 ## Objetivo
@@ -53,6 +53,7 @@ Resueltas: BM25 propio (unas 40 líneas, determinista, sin dependencia); stemmin
 - **La calibración de `τ` es optimista por construcción:** se ajusta con las mismas consultas que la prueban. La medición real será el recall de retrieval en el runner de evals, porque los casos de la spec 04 llevan etiquetado el chunk de política esperado. Eso cierra también la deuda de la spec 00 (BM25 vs embeddings medido con recall).
 - **El umbral es absoluto y depende del corpus:** agregar documentos cambia la calibración. Si el umbral falla, la falla segura es `[]`.
 - **Sin stemming real**, "devolución" y "devuelto" no coinciden. El vocabulario del cliente en cada documento lo mitiga, y el recall de la spec 04 lo hará visible.
+- **El margen frente a consultas ajenas es delgado** (0.290): "personas" coincide con "persona de operaciones", así que una consulta ajena con palabras comunes del corpus puede superar `τ`. La falla resultante es recuperar un chunk irrelevante, no inventar: el agente recibe texto de política real que no aplica, y el validador de groundedness de la spec 05 debe detectar que la cita no sustenta la respuesta.
 
 ## Cambios durante la implementación
 
@@ -60,3 +61,9 @@ Resueltas: BM25 propio (unas 40 líneas, determinista, sin dependencia); stemmin
 - Notas para la spec 05:
   - Cuando `search_policies` se exponga como tool, un `k` inválido debe volver al modelo como error de tool, sin interrumpir el caso.
   - El modelo no tiene los datos completos, porque llegan enmascarados. Si obedece la instrucción oculta, el riesgo es que **invente** una CLABE o una tarjeta. El validador de salida debe rechazar cualquier tramo de 16 o 18 dígitos en la respuesta al cliente, **sin exigir checksum válido**: un número inventado probablemente no lo pase, y el detector de la 01b no lo vería.
+  - `search_policies` acepta `index` solo para tests con corpus inyectable: **no va en el esquema de la tool**.
+- Recall: las 8 consultas de cliente y la envenenada recuperan su chunk en el top 3 sin ajustes al retriever, sin xfail y sin tocar consultas ni corpus. Las más débiles: `fraude` (rank 3, score 2.519; el top 1 es `contracargos`) y `contracargos#que-es-un-contracargo` (rank 2).
+- `τ = 2.0` congelado: relevante más baja 2.519, 0.519 sobre `τ`; ajena más alta 1.710, 0.290 bajo `τ`. Es optimista por construcción; la medición real es el recall en el runner de evals (spec 04).
+- `search_policies` aplica `mask()` al resultado completo, id incluido.
+- El envoltorio de no confiable vive en `backend/security/untrusted.py`, compartido con el MCP. `_outbound` envuelve cualquier valor no-None de un campo de tercero (hallazgo del security-reviewer).
+- El security-reviewer encontró por mutación que quitar el enmascarado de los chunks no rompía ningún test; se agregó `test_chunks_are_masked`.
