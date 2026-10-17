@@ -7,7 +7,11 @@ and an unknown action is refused even if someone approved it.
 
 from typing import Any
 
+from backend.store import ledger
+from backend.store.ledger import NotApprovedError
 from backend.store.store import Store
+
+__all__ = ["ACTIONS", "NotApprovedError", "execute"]
 
 ACTIONS: dict[str, str] = {
     "open_dispute": "aclaración registrada para revisión de operaciones",
@@ -16,22 +20,20 @@ ACTIONS: dict[str, str] = {
 }
 
 
-class NotApprovedError(PermissionError):
-    pass
-
-
 def execute(store: Store, proposal_id: int) -> dict[str, Any]:
     proposal = store.get_proposal(proposal_id)
     action = proposal["action"]
     if action not in ACTIONS:
         raise ValueError("acción fuera del enum: nunca se ejecuta")
-    decision = store.decision(proposal_id)
+    decision = ledger.decision(store, proposal_id)
     if decision is None or decision["decision"] != "approved":
         raise NotApprovedError("la propuesta no tiene una aprobación registrada")
-    previous = store.executions(proposal_id)
+    previous = ledger.executions(store, proposal_id)
     if previous:
         return previous[0]["result"]
-    return store.record_execution(
+    # The ledger re-checks the approval in the same transaction as the insert.
+    return ledger.record_execution(
+        store,
         proposal_id,
         {
             "action": action,

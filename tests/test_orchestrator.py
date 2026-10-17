@@ -13,6 +13,7 @@ from backend.agent.validators import CaseContext
 from backend.domain.sensitive import find_sensitive
 from backend.orchestrator.turn import run_turn
 from backend.policies.retrieval import search_policies
+from backend.store import ledger
 from backend.store.store import Store
 from evals.schema import load_cases
 
@@ -38,8 +39,8 @@ def test_valid_action_creates_pending_proposal():
     )
     result = run_turn(store, context(), tools, [], model)
     assert result.status == "proposal_pending" and result.proposal_id is not None
-    assert store.decision(result.proposal_id) is None
-    assert store.executions(result.proposal_id) == []
+    assert ledger.decision(store, result.proposal_id) is None
+    assert ledger.executions(store, result.proposal_id) == []
 
 
 def test_rejections_are_traced_with_validator(raw_customers):
@@ -93,9 +94,13 @@ def test_store_masks_every_table(raw_customers):
     store = Store(":memory:")
     c = raw_customers[0]
     pid = store.create_proposal(
-        "case_x", "open_dispute", "txn_0165", f"CLABE {c['clabe']} RFC {c['rfc']}"
+        "case_x",
+        "open_dispute",
+        "txn_0165",
+        f"CLABE {c['clabe']} RFC {c['rfc']}",
+        customer_id="cus_004",
     )
-    store.record_decision(pid, approver=f"ops {c['clabe']}", decision="approved")
+    ledger.record_decision(store, pid, approver=f"ops {c['clabe']}", decision="approved")
     dumped = json.dumps(store.all_rows(), ensure_ascii=False)
     assert c["clabe"] not in dumped and c["rfc"] not in dumped and find_sensitive(dumped) == []
 

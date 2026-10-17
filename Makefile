@@ -1,4 +1,4 @@
-.PHONY: check test lint check-docs dataset mock mcp smoke
+.PHONY: check test lint check-docs dataset mock mcp smoke api
 
 # Run before every commit: Claude Code hooks don't run outside that tool.
 check:
@@ -30,3 +30,7 @@ mcp:
 # Real model, costs money, not deterministic: outside `make check`.
 smoke:
 	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python scripts/smoke.py
+
+# Copilot API + in-process worker (real model: needs credentials).
+api:
+	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) uvicorn backend.app.api:_production_app --factory --port 8001

@@ -64,10 +64,19 @@ def conclude(store: Store, ctx: CaseContext, output: AgentOutput) -> TurnResult:
     """A validated output: answer, or a pending proposal. Never executes."""
     store.add_trace(ctx.case_id, "validation", {"status": "ok"})
     store.add_trace(ctx.case_id, "reasoning_summary", {"text": output.reasoning_summary})
+    store.add_trace(
+        ctx.case_id,
+        "answer",
+        {"case_type": output.case_type, "customer_reply": output.customer_reply},
+    )
     if output.action is None:
         return TurnResult("answered", output=output)
     proposal_id = store.create_proposal(
-        ctx.case_id, output.action.type, output.action.txn_id, output.action.justification
+        ctx.case_id,
+        output.action.type,
+        output.action.txn_id,
+        output.action.justification,
+        customer_id=ctx.customer_id,  # from the case context, never from the model
     )
     store.add_trace(
         ctx.case_id,

@@ -48,6 +48,8 @@ strict = [
     "backend/agent/validators.py",
     "backend/agent/prompt.py",
     "backend/executor/executor.py",
+    "backend/store/ledger.py",
+    "backend/approval/service.py",
 ]
 
 [tool.importlinter]
@@ -90,6 +92,24 @@ name = "llm adapter is isolated: no store, executor, unmask or evals"
 type = "forbidden"
 source_modules = ["backend.llm"]
 forbidden_modules = ["backend.store", "backend.executor", "backend.security.unmask", "evals"]
+
+[[tool.importlinter.contracts]]
+name = "ledger is protected: only the executor and the approval flow"
+type = "protected"
+protected_modules = ["backend.store.ledger"]
+allowed_importers = ["backend.executor", "backend.approval"]
+
+[[tool.importlinter.contracts]]
+name = "worker and orchestrator never approve or execute"
+type = "forbidden"
+source_modules = ["backend.orchestrator", "backend.worker"]
+forbidden_modules = ["backend.approval", "backend.executor", "backend.store.ledger"]
+
+[[tool.importlinter.contracts]]
+name = "approval never touches the model"
+type = "forbidden"
+source_modules = ["backend.approval"]
+forbidden_modules = ["backend.agent", "backend.orchestrator", "backend.llm"]
 
 [[tool.importlinter.contracts]]
 name = "orchestrator never executes or unmasks"
