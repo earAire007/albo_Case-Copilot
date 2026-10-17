@@ -6,9 +6,11 @@
 - Every response goes through the same path: domain model -> dict -> third-party text
   wrapped as untrusted -> mask(). A foreign, wrong-type or unknown txn_id yields the
   same error, so the tools are no oracle for other customers' ids.
-- Boundary middleware on tools/call: rejects arguments outside the tool's schema (e.g.
-  a model-supplied customer_id) and masks every text the call returns, including SDK
-  validation errors that echo the caller's input. SDK log records are masked too.
+- Boundary middleware on every method: on tools/call it rejects arguments outside the
+  tool's schema (e.g. a model-supplied customer_id); for every method it masks the
+  result text and the error message/data, which the SDK builds from the caller's input.
+- SDK log records (message, traceback, stack) are masked. The filter fails closed: if
+  masking raises, the whole message is replaced by a redaction notice.
 """
 
 import logging
@@ -18,8 +20,9 @@ from typing import Annotated, Any
 from mcp.server.context import CallNext, HandlerResult, ServerRequestContext
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from pydantic import Field
+from mcp.shared.exceptions import MCPError
+from mcp.types import INTERNAL_ERROR, CallToolResult, TextContent, ToolAnnotations
+from pydantic import BaseModel, Field, ValidationError
 
 from backend.domain.models import Transaction, TxnStatus, TxnType
 from backend.mock_core.repository import CoreRepository, InvalidCursorError
@@ -64,13 +67,37 @@ def _txn_dict(txn: Transaction, fields: tuple[str, ...] | None = None) -> dict[s
     return {"txn_id": txn.id, **{k: data[k] for k in fields}}
 
 
+LOG_REDACTED = "[log redactado: error al enmascarar]"
+
+
 class _MaskLogRecords(logging.Filter):
+    """Masks message, traceback and stack into the message; fails closed."""
+
     def filter(self, record: logging.LogRecord) -> bool:
-        record.msg, record.args = mask_text(record.getMessage()), None
+        try:
+            text = record.getMessage()
+            if record.exc_info:
+                text += "\n" + logging.Formatter().formatException(record.exc_info)
+            elif record.exc_text:
+                text += "\n" + record.exc_text
+            if record.stack_info:
+                text += "\n" + record.stack_info
+            record.msg = mask_text(text)
+        except Exception:
+            # Never let the original record through: level and logger name are kept.
+            record.msg = LOG_REDACTED
+        record.args = None
+        record.exc_info = None
+        record.exc_text = None
+        record.stack_info = None
         return True
 
 
 _LOG_FILTER = _MaskLogRecords()
+
+
+_logger = logging.getLogger(__name__)
+_logger.addFilter(_LOG_FILTER)
 
 
 def _mask_sdk_logs() -> None:
@@ -84,6 +111,24 @@ def _mask_sdk_logs() -> None:
 
 def _error(text: str) -> CallToolResult:
     return CallToolResult(content=[TextContent(type="text", text=mask_text(text))], is_error=True)
+
+
+def _mask_strings(value: Any) -> Any:
+    """Protocol envelopes: mask strings only, keep numbers and structure as they are."""
+    if isinstance(value, dict):
+        return {k: _mask_strings(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_mask_strings(v) for v in value]
+    if isinstance(value, str):
+        return mask_text(value)
+    return value
+
+
+def _masked_error(exc: MCPError) -> MCPError:
+    # Re-raised as base MCPError (code kept). Subclasses such as elicitation errors are
+    # not used by these read-only tools; revisit if a tool ever relies on them.
+    data = exc.error.data
+    return MCPError(exc.code, mask_text(exc.message), None if data is None else _mask_strings(data))
 
 
 def _masked_result(result: HandlerResult) -> HandlerResult:
@@ -110,7 +155,7 @@ def _masked_result(result: HandlerResult) -> HandlerResult:
 
 
 class _BoundaryMiddleware:
-    """tools/call guard: closed argument schema and masked output, for every tool."""
+    """Boundary guard: closed tool-argument schema and masked results/errors, every method."""
 
     def __init__(self) -> None:
         self.server: MCPServer | None = None
@@ -126,16 +171,34 @@ class _BoundaryMiddleware:
     async def __call__(
         self, ctx: ServerRequestContext[Any, Any], call_next: CallNext
     ) -> HandlerResult:
-        if ctx.method != "tools/call" or ctx.params is None:
-            return await call_next(ctx)
-        name = str(ctx.params.get("name", ""))
-        arguments = ctx.params.get("arguments") or {}
-        allowed = (await self._allowed_args()).get(name)
-        if allowed is not None and isinstance(arguments, dict):
-            extra = sorted(str(k) for k in arguments if k not in allowed)
-            if extra:
-                return _error(f"argumentos no permitidos para {name}: {', '.join(extra)}")
-        return _masked_result(await call_next(ctx))
+        is_tool_call = ctx.method == "tools/call"
+        if is_tool_call and ctx.params is not None:
+            name = str(ctx.params.get("name", ""))
+            arguments = ctx.params.get("arguments") or {}
+            allowed = (await self._allowed_args()).get(name)
+            if allowed is not None and isinstance(arguments, dict):
+                extra = sorted(str(k) for k in arguments if k not in allowed)
+                if extra:
+                    return _error(f"argumentos no permitidos para {name}: {', '.join(extra)}")
+        try:
+            result = await call_next(ctx)
+        except MCPError as exc:
+            raise _masked_error(exc) from None
+        except ValidationError:
+            raise  # malformed params: the SDK answers with a generic message
+        except Exception:
+            # Fail closed: some transports echo str(exc), which may carry caller input.
+            _logger.exception("%s failed", ctx.method)
+            raise MCPError(INTERNAL_ERROR, "Internal server error") from None
+        if is_tool_call:
+            return _masked_result(result)
+        # initialize is observed but must not be rewritten (SDK handshake); notifications
+        # return None. Everything else gets its strings masked.
+        if ctx.method == "initialize" or result is None:
+            return result
+        if isinstance(result, BaseModel):
+            result = result.model_dump(by_alias=True, mode="json", exclude_none=True)
+        return _mask_strings(result)
 
 
 def create_server(repo: CoreRepository, customer_id: str) -> MCPServer:

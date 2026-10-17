@@ -5,17 +5,20 @@ boundary the agent harness will use (spec 05).
 """
 
 import json
+import logging
 import re
 import shutil
 import subprocess
 import sys
+import threading
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
 import anyio
 import pytest
-from mcp import Client
+from mcp import Client, types
+from mcp.shared.exceptions import MCPError
 from mcp.types import TextContent
 
 from backend.domain.sensitive import find_sensitive
@@ -323,3 +326,128 @@ def test_unknown_tool_name_with_clabe_is_masked(repo, raw_customers):
     is_error, message = with_client(repo, "cus_001", fn)
     # The SDK echoes the tool name (and logs it); both go through mask_text.
     assert is_error and clabe not in message and "****" + clabe[-4:] in message
+
+
+def _clabe(raw_customers: list[dict[str, Any]]) -> str:
+    return raw_customers[0]["clabe"]
+
+
+def test_traceback_with_clabe_is_masked_in_logs(repo, raw_customers, capsys):
+    """A: prompts/get with a CLABE as name makes the SDK log a traceback containing it."""
+    clabe = _clabe(raw_customers)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
+    root = logging.getLogger()
+    root.addHandler(handler)
+    try:
+
+        async def fn(client: Client):
+            with pytest.raises(MCPError):
+                await client.get_prompt(clabe)
+
+        with_client(repo, "cus_001", fn)
+    finally:
+        root.removeHandler(handler)
+    err = capsys.readouterr().err
+    assert "Traceback" in err, "el traceback se conserva, enmascarado"
+    assert clabe not in err and find_sensitive(err) == []
+
+
+def test_non_tool_methods_mask_their_errors(repo, raw_customers):
+    """B: the boundary covers every method, not only tools/call."""
+    clabe = _clabe(raw_customers)
+
+    async def fn(client: Client) -> list[MCPError]:
+        errors: list[MCPError] = []
+        for request in (
+            lambda: client.get_prompt(clabe),
+            lambda: client.read_resource(f"file://{clabe}"),
+            lambda: client.session.send_request(
+                types.Request[dict[str, Any] | None, str](method=f"x/{clabe}", params=None),
+                types.EmptyResult,
+            ),
+        ):
+            with pytest.raises(MCPError) as info:
+                await request()
+            errors.append(info.value)
+        return errors
+
+    for error in with_client(repo, "cus_001", fn):
+        dumped = json.dumps(error.error.model_dump(mode="json"), ensure_ascii=False)
+        assert clabe not in dumped and find_sensitive(dumped) == [], dumped
+
+
+def test_log_filter_fails_closed(repo, raw_customers, capsys):
+    """C: if masking a record fails, the record is redacted, never passed through."""
+    clabe = _clabe(raw_customers)
+    create_server(repo, "cus_001")  # installs the filter on mcp.* loggers
+    sdk_logger = logging.getLogger("mcp.server.mcpserver.server")
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(levelname)s|%(name)s|%(message)s"))
+    sdk_logger.addHandler(handler)
+    try:
+        # Bad format args: getMessage() raises inside the filter.
+        sdk_logger.warning("valor %s %s", clabe)
+    finally:
+        sdk_logger.removeHandler(handler)
+    err = capsys.readouterr().err
+    assert clabe not in err
+    assert "WARNING|mcp.server.mcpserver.server|[log redactado: error al enmascarar]" in err
+
+
+def test_non_mcp_errors_are_masked_over_stdio(raw_customers):
+    """B over the real transport. A client negotiating protocol 2025-06-18 goes through
+    the JSON-RPC dispatcher, which echoes non-MCPError exceptions (e.g. prompts/get)."""
+    clabe = _clabe(raw_customers)
+    messages = [
+        {
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "1"},
+            },
+        },
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        {"jsonrpc": "2.0", "id": 1, "method": "prompts/get", "params": {"name": clabe}},
+        {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "resources/read",
+            "params": {"uri": f"file:///{clabe}"},
+        },
+        {"jsonrpc": "2.0", "id": 3, "method": clabe, "params": {}},
+    ]
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "mcp_server", "--customer-id", "cus_001"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert proc.stdin and proc.stdout
+    for message in messages:
+        proc.stdin.write(json.dumps(message) + "\n")
+    proc.stdin.flush()
+    # Keep stdin open until every response arrived: EOF stops the server early.
+    # The timer kills a hung server so readline() returns "" and the test fails, not hangs.
+    killer = threading.Timer(60, proc.kill)
+    killer.start()
+    lines: list[str] = []
+    responses: dict[int, dict[str, Any]] = {}
+    while set(responses) != {1, 2, 3}:
+        line = proc.stdout.readline()
+        assert line, "el servidor cerró antes de responder"
+        lines.append(line)
+        response = json.loads(line)
+        if response.get("id") in (1, 2, 3):
+            responses[response["id"]] = response
+    killer.cancel()
+    out, err = proc.communicate(timeout=30)
+    stdout = "".join(lines) + out
+    assert all("error" in r for r in responses.values())
+    for stream in (stdout, err):
+        assert clabe not in stream and find_sensitive(stream) == []

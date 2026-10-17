@@ -8,6 +8,11 @@
   digits) passes untouched because the detector excludes that exact format; there is no
   exemption by field name, so a CLABE placed in `tracking_key` is still masked.
 
+Integers with 13+ digits are treated as text and go through the detector (a CLABE or
+card stored as a number); shorter ints (amounts) pass untouched.
+Over-masking is accepted: a 13–19 digit int that passes Luhn by chance (e.g. a
+millisecond timestamp) comes out as `****1234`, a string.
+
 Pure function: returns a new structure, never mutates the input.
 """
 
@@ -25,6 +30,7 @@ SENSITIVE_FIELDS: dict[str, Kind] = {
     "curp": "curp",
 }
 _LAST4_KINDS: frozenset[Kind] = frozenset({"clabe", "card"})
+LONG_INT_DIGITS = 13
 
 
 def _render(kind: Kind, original: str) -> str:
@@ -54,6 +60,12 @@ def mask(value: Json, field: str | None = None) -> Json:
         return {key: mask(item, key) for key, item in value.items()}
     if isinstance(value, list):
         return [mask(item, field) for item in value]
+    if isinstance(value, int) and not isinstance(value, bool):
+        text = str(value)
+        if len(text.lstrip("-")) < LONG_INT_DIGITS:
+            return value
+        masked = mask_text(text)
+        return value if masked == text else masked
     if not isinstance(value, str):
         return value
     if field is not None and field in SENSITIVE_FIELDS:

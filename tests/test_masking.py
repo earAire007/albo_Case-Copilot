@@ -63,3 +63,14 @@ def test_unmask_rejects_unknown_field_or_customer(repo):
         unmask(repo, "cus_001", "name")
     with pytest.raises(LookupError):
         unmask(repo, "cus_999", "clabe")
+
+
+def test_mask_long_ints_as_text(raw_customers):
+    """D: an 18-digit int that is a valid CLABE is masked like the string form."""
+    clabe = raw_customers[0]["clabe"]
+    assert not clabe.startswith("0")
+    assert mask({"ref": int(clabe), "amount": 125000}) == {
+        "ref": "****" + clabe[-4:],
+        "amount": 125000,
+    }
+    assert mask(int("7" * 20)) == "[LONG_NUMBER]"
