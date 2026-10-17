@@ -5,7 +5,9 @@
       "Read(./.env.*)",
       "Bash(git push --force:*)",
       "Write(./evals/labels/human.json)",
-      "Edit(./evals/labels/human.json)"
+      "Edit(./evals/labels/human.json)",
+      "Write(./evals/labels/human_r2.json)",
+      "Edit(./evals/labels/human_r2.json)"
     ],
     "allow": [
       "Bash(make test)",

@@ -15,6 +15,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import sys
 import unicodedata
 from collections.abc import Callable, Sequence
@@ -475,7 +476,10 @@ def _ratio(pair: tuple[int, int]) -> str:
 
 
 def render_table(
-    summaries: Sequence[Summary], judge_agreement: dict[str, Any] | None = None
+    summaries: Sequence[Summary],
+    judge_agreement: dict[str, Any] | None = None,
+    *,
+    comparison_run_id: str | None = None,
 ) -> str:
     names = [s.variant for s in summaries]
     rows: list[tuple[str, list[str]]] = [
@@ -532,6 +536,8 @@ def render_table(
         "|---|" + "---|" * len(names),
         *(f"| {label} | " + " | ".join(cells) + " |" for label, cells in rows),
     ]
+    if comparison_run_id is not None:
+        lines = [f"**Corrida comparativa guardada:** `{comparison_run_id}`", "", *lines]
     if judge_agreement is not None:
         lines += ["", "**Acuerdo del juez con etiquetas humanas** (por variante y criterio):", ""]
         for variant, criteria in judge_agreement.items():
@@ -560,6 +566,7 @@ def _estimate(variants: Sequence[Variant], n_cases: int) -> float:
 
 
 LABEL_SEED = 2026
+LABEL_R2_SEED = 2027
 LABELS_PER_VARIANT = 5
 
 
@@ -577,50 +584,161 @@ def _latest_runs() -> tuple[str, dict[str, dict[str, Any]]]:
     return stamp, runs
 
 
+def _saved_summaries(run_id: str) -> list[Summary]:
+    if not re.fullmatch(r"\d{8}T\d{6}Z", run_id):
+        raise SystemExit(f"Id de corrida inválido: {run_id}")
+    summaries: list[Summary] = []
+    for variant in VARIANTS:
+        path = RUNS_DIR / f"{run_id}-{variant}.json"
+        if not path.is_file():
+            raise SystemExit(f"Falta el resultado guardado de {variant} para la corrida {run_id}.")
+        summary = json.loads(path.read_text()).get("summary")
+        if summary is None or summary.get("variant") != variant:
+            raise SystemExit(f"El resumen guardado de {path.name} no coincide con {variant}.")
+        summaries.append(Summary(**_summary_fields(summary)))
+    return summaries
+
+
+def render_saved_run(run_id: str) -> None:
+    table = render_table(_saved_summaries(run_id), comparison_run_id=run_id)
+    EVALS_MD.write_text(update_evals_md(EVALS_MD.read_text(), table))
+    print(f"Tabla regenerada desde la corrida guardada {run_id} (sin llamar al modelo).")
+
+
 def diagnostic_path(stamp: str, variant: str) -> Path:
     """Diagnostic runs never count as the latest comparison run (`_latest_runs`)."""
     return RUNS_DIR / f"{stamp}-diag-{variant}.json"
 
 
-def label_template(case_prefixes: Sequence[str] | None = None) -> None:
+def _labels_path(round_number: int) -> Path:
+    if round_number == 1:
+        return judge.LABELS_PATH
+    if round_number == 2:
+        return judge.LABELS_R2_PATH
+    raise SystemExit(f"Ronda de etiquetas inválida: {round_number}. Usa 1 o 2.")
+
+
+def _labels_mapping_path(stamp: str, round_number: int) -> Path:
+    suffix = "-labels-mapping.json" if round_number == 1 else "-labels-r2-mapping.json"
+    return RUNS_DIR / f"{stamp}{suffix}"
+
+
+def label_template(case_prefixes: Sequence[str] | None = None, *, round_number: int = 1) -> None:
     """~10 anonymous answers (half per variant) for a person to label. Never overwrites
-    labels; the mapping to the variant stays in evals/runs/ (git-ignored). With
-    `case_prefixes`, the same cases in every variant (paired); otherwise one in three."""
+    labels; the mapping to the variant stays in evals/runs/ (git-ignored). Round two is
+    paired on five answered cases that are new relative to round one and includes case 14."""
     stamp, runs = _latest_runs()
-    items: list[judge.JudgeItem] = []
-    for variant, data in runs.items():
-        answered = [r for r in data["run"]["results"] if r["reply"]]
+    selected: dict[str, list[dict[str, Any]]] = {}
+    if round_number == 2:
         if case_prefixes:
-            chosen = [r for r in answered if r["case_id"].startswith(tuple(case_prefixes))]
-            if len(chosen) != len(case_prefixes):
-                raise SystemExit(f"{variant}: no todos los casos pedidos tienen respuesta.")
-        else:
-            step = max(1, len(answered) // LABELS_PER_VARIANT)
-            chosen = answered[::step][:LABELS_PER_VARIANT]
-        for r in chosen:
-            items.append(
-                judge.JudgeItem(variant, r["case_id"], r["message"], r["evidence"], r["reply"])
+            raise SystemExit(
+                "La ronda 2 selecciona casos automáticamente; no acepta --label-cases."
             )
-    blinded, mapping = judge.blind(items, seed=LABEL_SEED)
-    judge.write_label_template(judge.LABELS_PATH, blinded)
-    (RUNS_DIR / f"{stamp}-labels-mapping.json").write_text(
-        json.dumps({"seed": LABEL_SEED, "mapping": mapping}, ensure_ascii=False, indent=2)
+        if set(runs) != set(VARIANTS):
+            raise SystemExit("La ronda 2 requiere resultados guardados de ambas variantes.")
+        r1_mapping_path = _labels_mapping_path(stamp, 1)
+        if not r1_mapping_path.is_file():
+            raise SystemExit(f"Falta el mapeo de la ronda 1 para la corrida {stamp}.")
+        r1_mapping = json.loads(r1_mapping_path.read_text())["mapping"]
+        r1_cases = {case_id for _, case_id in r1_mapping.values()}
+        answered: dict[str, dict[str, dict[str, Any]]] = {}
+        for variant, data in runs.items():
+            answered[variant] = {
+                row["case_id"]: row for row in data["run"]["results"] if row.get("reply")
+            }
+        common = set.intersection(*(set(rows) for rows in answered.values())) - r1_cases
+        required_case = next((case_id for case_id in common if case_id.startswith("14-")), None)
+        if required_case is None:
+            raise SystemExit("No hay un caso 14 respondido por ambas variantes y distinto de R1.")
+        cases = [required_case, *sorted(common - {required_case})[: LABELS_PER_VARIANT - 1]]
+        if len(cases) != LABELS_PER_VARIANT:
+            raise SystemExit(
+                f"Ronda 2 requiere {LABELS_PER_VARIANT} casos nuevos "
+                "respondidos por ambas variantes; "
+                f"solo hay {len(cases)}."
+            )
+        selected = {variant: [answered[variant][case_id] for case_id in cases] for variant in runs}
+    elif round_number == 1:
+        for variant, data in runs.items():
+            answered_rows = [row for row in data["run"]["results"] if row["reply"]]
+            if case_prefixes:
+                chosen = [
+                    row for row in answered_rows if row["case_id"].startswith(tuple(case_prefixes))
+                ]
+                if len(chosen) != len(case_prefixes):
+                    raise SystemExit(f"{variant}: no todos los casos pedidos tienen respuesta.")
+            else:
+                step = max(1, len(answered_rows) // LABELS_PER_VARIANT)
+                chosen = answered_rows[::step][:LABELS_PER_VARIANT]
+            selected[variant] = chosen
+    else:
+        raise SystemExit(f"Ronda de etiquetas inválida: {round_number}. Usa 1 o 2.")
+
+    items = [
+        judge.JudgeItem(variant, row["case_id"], row["message"], row["evidence"], row["reply"])
+        for variant, chosen in selected.items()
+        for row in chosen
+    ]
+    seed = LABEL_SEED if round_number == 1 else LABEL_R2_SEED
+    blinded, mapping = judge.blind(items, seed=seed)
+    labels_path = _labels_path(round_number)
+    judge.write_label_template(labels_path, blinded)
+    _labels_mapping_path(stamp, round_number).write_text(
+        json.dumps({"seed": seed, "mapping": mapping}, ensure_ascii=False, indent=2)
     )
-    path = judge.LABELS_PATH
+    path = labels_path
     shown = path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path
-    print(f"Plantilla: {shown} ({len(blinded)} respuestas)")
+    print(f"Plantilla: {shown} ({len(blinded)} respuestas; corrida {stamp})")
 
 
 JUDGE_EST_COST_PER_ITEM = 0.05
 
 
-def run_judge(max_usd: float) -> None:
+def require_committed_labels(
+    path: Path, entries: Sequence[dict[str, Any]], *, repo_root: Path | None = None
+) -> None:
+    repo_root = repo_root or REPO_ROOT
+    if not entries:
+        raise SystemExit("El archivo de etiquetas está vacío.")
+    if any(
+        not isinstance(entry.get(criterion), bool)
+        for entry in entries
+        for criterion in judge.CRITERIA
+    ):
+        raise SystemExit(
+            "Hay etiquetas sin etiquetar o inválidas (se requiere true/false en cada criterio)."
+        )
+    try:
+        relative_path = path.resolve().relative_to(repo_root.resolve())
+    except ValueError as exc:
+        raise SystemExit("El archivo de etiquetas debe estar dentro del repositorio.") from exc
+    tracked = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", relative_path.as_posix()],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    )
+    if tracked.returncode:
+        raise SystemExit(f"El archivo de etiquetas no está versionado: {relative_path}.")
+    clean = subprocess.run(
+        ["git", "diff", "--quiet", "HEAD", "--", relative_path.as_posix()],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    )
+    if clean.returncode:
+        raise SystemExit(f"El archivo de etiquetas tiene cambios sin commitear: {relative_path}.")
+
+
+def run_judge(max_usd: float, *, round_number: int = 1) -> None:
     """Judge the labeled items blind and report agreement per variant. Costs money."""
     stamp, runs = _latest_runs()
-    mapping_file = RUNS_DIR / f"{stamp}-labels-mapping.json"
-    if not judge.LABELS_PATH.exists() or not mapping_file.exists():
-        raise SystemExit("Falta la plantilla etiquetada: `make evals-label-template`.")
-    entries: list[dict[str, Any]] = json.loads(judge.LABELS_PATH.read_text())
+    labels_path = _labels_path(round_number)
+    mapping_file = _labels_mapping_path(stamp, round_number)
+    if not labels_path.exists() or not mapping_file.exists():
+        raise SystemExit(f"Falta la plantilla o el mapeo de la ronda {round_number}.")
+    entries: list[dict[str, Any]] = json.loads(labels_path.read_text())
+    require_committed_labels(labels_path, entries)
     mapping = {k: tuple(v) for k, v in json.loads(mapping_file.read_text())["mapping"].items()}
     labels = {e["id"]: {c: e.get(c) for c in judge.CRITERIA} for e in entries}
     blinded = [{k: e[k] for k in ("id", "message", "evidence", "reply")} for e in entries]
@@ -630,15 +748,21 @@ def run_judge(max_usd: float) -> None:
         raise SystemExit("La estimación del juez supera MAX_USD: no se corre.")
     verdicts = anyio.run(judge.judge_all, blinded)
     result = judge.agreement(verdicts, labels, mapping)
-    (RUNS_DIR / f"{stamp}-judge.json").write_text(
+    result_suffix = "-judge.json" if round_number == 1 else "-judge-r2.json"
+    (RUNS_DIR / f"{stamp}{result_suffix}").write_text(
         json.dumps({"verdicts": verdicts, "agreement": result}, ensure_ascii=False, indent=2)
     )
     if result is None:
         print("Sin etiquetas humanas: el juez no se valida ni se presenta.")
         return
     summaries = [Summary(**_summary_fields(d["summary"])) for d in runs.values()]
-    EVALS_MD.write_text(update_evals_md(EVALS_MD.read_text(), render_table(summaries, result)))
-    print("Acuerdo del juez escrito en EVALS.md")
+    EVALS_MD.write_text(
+        update_evals_md(
+            EVALS_MD.read_text(),
+            render_table(summaries, result, comparison_run_id=stamp),
+        )
+    )
+    print(f"Acuerdo de ronda {round_number} escrito en EVALS.md")
 
 
 def _summary_fields(raw: dict[str, Any]) -> dict[str, Any]:
@@ -652,6 +776,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--max-usd", type=float, default=None)
     parser.add_argument("--label-template", action="store_true")
     parser.add_argument("--judge", action="store_true")
+    parser.add_argument("--round", type=int, choices=(1, 2), default=1)
+    parser.add_argument(
+        "--render-run",
+        help="Regenera EVALS.md desde el id explícito de una corrida comparativa guardada.",
+    )
     parser.add_argument("--label-cases", default=None, help="p. ej. 01,03,08,10,13")
     parser.add_argument(
         "--cases",
@@ -660,15 +789,21 @@ def main(argv: Sequence[str] | None = None) -> None:
         "como la última corrida comparativa.",
     )
     args = parser.parse_args(argv)
+    if args.render_run:
+        render_saved_run(args.render_run)
+        return
     if args.label_template:
-        label_template(str(args.label_cases).split(",") if args.label_cases else None)
+        label_template(
+            str(args.label_cases).split(",") if args.label_cases else None,
+            round_number=args.round,
+        )
         return
     max_usd = args.max_usd if args.max_usd is not None else os.environ.get("MAX_USD")
     if not max_usd:
         parser.exit(2, "MAX_USD es obligatorio: declara el presupuesto antes de correr.\n")
     budget = float(max_usd)
     if args.judge:
-        run_judge(budget)
+        run_judge(budget, round_number=args.round)
         return
     try:
         variants = [VARIANTS[name] for name in str(args.variant).split(",")]

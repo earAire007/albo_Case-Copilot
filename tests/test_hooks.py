@@ -34,6 +34,14 @@ def test_hooks_registered():
     assert any("verify-on-stop.sh" in cmd for cmd in stop)
 
 
+def test_human_label_files_are_write_denied():
+    settings = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text())
+    denied = settings["permissions"]["deny"]
+    for file_name in ("human.json", "human_r2.json"):
+        assert f"Write(./evals/labels/{file_name})" in denied
+        assert f"Edit(./evals/labels/{file_name})" in denied
+
+
 def test_ruff_hook_skips_non_python(tmp_path):
     doc = tmp_path / "notes.md"
     doc.write_text("import os\n")

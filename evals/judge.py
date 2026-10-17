@@ -22,6 +22,7 @@ from typing import Any
 CRITERIA = ("groundedness", "quality")
 LABELS_DIR = Path(__file__).resolve().parent / "labels"
 LABELS_PATH = LABELS_DIR / "human.json"
+LABELS_R2_PATH = LABELS_DIR / "human_r2.json"
 LABEL_GUIDE_PATH = LABELS_DIR / "README.md"
 
 RUBRIC = """Evalúas respuestas de atención a clientes de una fintech. Para cada respuesta,

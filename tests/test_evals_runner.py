@@ -406,3 +406,362 @@ def test_label_template_pairs_the_requested_cases(tmp_path, monkeypatch):
         ("sonnet-5.5", "01-a"),
         ("sonnet-5.5", "13-c"),
     ]
+
+
+def test_round_two_template_uses_new_paired_cases_including_case_14(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner, "RUNS_DIR", tmp_path)
+    monkeypatch.setattr(runner.judge, "LABELS_R2_PATH", tmp_path / "human_r2.json")
+    stamp = "20260101T000000Z"
+    r1_mapping = {
+        f"r{i}": [variant, case_id]
+        for i, (variant, case_id) in enumerate(
+            [
+                ("opus-5.5", "01-spei-devuelto"),
+                ("sonnet-5.5", "01-spei-devuelto"),
+                ("opus-5.5", "03-reenvio-cep"),
+                ("sonnet-5.5", "03-reenvio-cep"),
+                ("opus-5.5", "08-clabe-propia-completa"),
+                ("sonnet-5.5", "08-clabe-propia-completa"),
+                ("opus-5.5", "10-adv-reembolso-clabe-externa"),
+                ("sonnet-5.5", "10-adv-reembolso-clabe-externa"),
+                ("opus-5.5", "13-adv-politica-envenenada"),
+                ("sonnet-5.5", "13-adv-politica-envenenada"),
+            ]
+        )
+    }
+    (tmp_path / f"{stamp}-labels-mapping.json").write_text(
+        json.dumps({"seed": 2026, "mapping": r1_mapping})
+    )
+    case_ids = [
+        "01-spei-devuelto",
+        "02-spei-pendiente-fuera-de-plazo",
+        "03-reenvio-cep",
+        "04-cargo-duplicado",
+        "05-tarjeta-no-llega",
+        "06-compra-rechazada",
+        "07-spei-pendiente-en-plazo",
+        "08-clabe-propia-completa",
+        "09-sin-sustento",
+        "10-adv-reembolso-clabe-externa",
+        "11-adv-otra-cuenta",
+        "12-adv-concepto-inyectado",
+        "13-adv-politica-envenenada",
+        "14-adv-mensaje-y-politica",
+        "15-adv-titular-falso",
+    ]
+    for variant in ("opus-5.5", "sonnet-5.5"):
+        results = [
+            {
+                "case_id": case_id,
+                "message": f"message {case_id}",
+                "evidence": f"evidence {case_id}",
+                "reply": "" if case_id.startswith(("04", "05")) else f"reply {case_id}",
+            }
+            for case_id in case_ids
+        ]
+        (tmp_path / f"{stamp}-{variant}.json").write_text(json.dumps({"run": {"results": results}}))
+
+    runner.label_template(round_number=2)
+
+    entries = json.loads((tmp_path / "human_r2.json").read_text())
+    mapping = json.loads((tmp_path / f"{stamp}-labels-r2-mapping.json").read_text())["mapping"]
+    assert len(entries) == 10
+    assert {case_id for _, case_id in mapping.values()} >= {"14-adv-mensaje-y-politica"}
+    assert not ({case_id for _, case_id in mapping.values()} & {v[1] for v in r1_mapping.values()})
+    cases_by_variant = {
+        variant: {
+            case_id for mapped_variant, case_id in mapping.values() if mapped_variant == variant
+        }
+        for variant in ("opus-5.5", "sonnet-5.5")
+    }
+    assert cases_by_variant["opus-5.5"] == cases_by_variant["sonnet-5.5"]
+    assert len(cases_by_variant["opus-5.5"]) == 5
+    assert not (cases_by_variant["opus-5.5"] & {"04-cargo-duplicado", "05-tarjeta-no-llega"})
+    assert all(
+        entry["groundedness"] is None and entry["quality"] is None and entry["notes"] is None
+        for entry in entries
+    )
+
+
+def test_render_comparison_from_explicit_saved_run_without_model(tmp_path, monkeypatch):
+    stamp = "20260101T000000Z"
+    monkeypatch.setattr(runner, "RUNS_DIR", tmp_path / "runs")
+    monkeypatch.setattr(runner, "EVALS_MD", tmp_path / "EVALS.md")
+    runner.RUNS_DIR.mkdir()
+    runner.EVALS_MD.write_text(
+        f"before\n{runner.BEGIN}\nold\n{runner.END}\nafter\n", encoding="utf-8"
+    )
+    for variant in ("opus-5.5", "sonnet-5.5"):
+        summary = runner.Summary(
+            variant=variant,
+            n=15,
+            complete=True,
+            case_type_accuracy=(12, 15),
+            action_accuracy=(14, 15),
+            no_support_accuracy=(14, 15),
+            tools_coverage=0.8,
+            policy_recall=0.9,
+            by_vector={},
+            over_refusal=(0, 3),
+            over_refusal_pending_review=[],
+            heuristic_violations=[],
+            heuristic_v1_count=0,
+            cost_usd=0.4,
+            cost_per_case=0.03,
+            latency_p50_ms=1000,
+            latency_p95_ms=2000,
+        )
+        (runner.RUNS_DIR / f"{stamp}-{variant}.json").write_text(
+            json.dumps({"summary": runner.asdict(summary)})
+        )
+    monkeypatch.setattr(
+        runner,
+        "AnthropicModel",
+        lambda *_args, **_kwargs: pytest.fail("render must not construct a model"),
+        raising=False,
+    )
+
+    runner.main(["--render-run", stamp])
+
+    rendered = runner.EVALS_MD.read_text()
+    assert f"Corrida comparativa guardada:** `{stamp}`" in rendered
+    assert "| `case_type` | 12/15 (80%) | 12/15 (80%) |" in rendered
+    assert "before\n" in rendered and "\nafter\n" in rendered
+
+
+def test_make_eval_render_target_requires_explicit_run_id():
+    output = subprocess.run(
+        ["make", "-n", "evals-render", "RUN_ID=20260101T000000Z"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=True,
+    ).stdout
+    assert "--render-run 20260101T000000Z" in output
+
+
+def test_judge_requires_committed_clean_and_complete_label_file(tmp_path):
+    def git(repo: Path, *args: str) -> None:
+        subprocess.run(["git", *args], cwd=repo, capture_output=True, check=True)
+
+    def init_repo(file_name: str) -> tuple[Path, Path]:
+        repo = tmp_path / f"repo-{file_name.replace('/', '_')}-{len(list(tmp_path.iterdir()))}"
+        repo.mkdir()
+        git(repo, "init", "-q")
+        git(repo, "config", "user.name", "Test")
+        git(repo, "config", "user.email", "test@example.com")
+        labels = repo / file_name
+        labels.parent.mkdir(parents=True, exist_ok=True)
+        labels.write_text(json.dumps([{"groundedness": True, "quality": False, "notes": None}]))
+        return repo, labels
+
+    entries = [{"groundedness": True, "quality": False, "notes": None}]
+
+    untracked_repo, untracked = init_repo("evals/labels/human.json")
+    with pytest.raises(SystemExit, match="versionado"):
+        runner.require_committed_labels(untracked, entries, repo_root=untracked_repo)
+
+    repo, labels = init_repo("evals/labels/human.json")
+    git(repo, "add", "evals/labels/human.json")
+    git(repo, "commit", "-m", "human labels")
+    runner.require_committed_labels(labels, entries, repo_root=repo)
+
+    labels.write_text(json.dumps([{"groundedness": False, "quality": False, "notes": None}]))
+    with pytest.raises(SystemExit, match="cambios"):
+        runner.require_committed_labels(labels, entries, repo_root=repo)
+
+    git(repo, "add", "evals/labels/human.json")
+    with pytest.raises(SystemExit, match="cambios"):
+        runner.require_committed_labels(labels, entries, repo_root=repo)
+
+
+@pytest.mark.parametrize("file_name", ["human.json", "human_r2.json"])
+def test_judge_rejects_incomplete_labels_for_each_round(tmp_path, file_name):
+    repo = tmp_path
+    labels = repo / "evals" / "labels" / file_name
+    labels.parent.mkdir(parents=True)
+    labels.write_text("[]")
+    git_result = subprocess.run(["git", "init", "-q"], cwd=repo, capture_output=True)
+    assert git_result.returncode == 0
+    with pytest.raises(SystemExit, match="sin etiquetar"):
+        runner.require_committed_labels(
+            labels,
+            [{"groundedness": True, "quality": None}],
+            repo_root=repo,
+        )
+
+
+@pytest.mark.parametrize("file_name", ["human.json", "human_r2.json"])
+def test_judge_accepts_clean_committed_label_file_for_each_round(tmp_path, file_name):
+    repo = tmp_path
+    path = repo / "evals" / "labels" / file_name
+    path.parent.mkdir(parents=True)
+    entries = [{"groundedness": True, "quality": False, "notes": None}]
+    path.write_text(json.dumps(entries))
+    subprocess.run(["git", "init", "-q"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Test"], cwd=repo, capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(["git", "add", str(path.relative_to(repo))], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "human labels"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+
+    runner.require_committed_labels(path, entries, repo_root=repo)
+
+
+def test_judge_command_stops_before_model_for_dirty_selected_file(tmp_path, monkeypatch):
+    repo = tmp_path
+    labels_path = repo / "evals" / "labels" / "human.json"
+    labels_path.parent.mkdir(parents=True)
+    entries = [
+        {
+            "id": "anon-r1",
+            "message": "m",
+            "evidence": "e",
+            "reply": "r",
+            "groundedness": True,
+            "quality": False,
+            "notes": None,
+        }
+    ]
+    labels_path.write_text(json.dumps(entries))
+    subprocess.run(["git", "init", "-q"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Test"], cwd=repo, capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "add", "evals/labels/human.json"], cwd=repo, capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "human labels"], cwd=repo, capture_output=True, check=True
+    )
+    labels_path.write_text(json.dumps(entries, ensure_ascii=False, indent=2))
+    runs_dir = repo / "evals" / "runs"
+    runs_dir.mkdir(parents=True)
+    (runs_dir / "20260101T000000Z-labels-mapping.json").write_text(
+        json.dumps({"mapping": {"anon-r1": ["opus-5.5", "case_1"]}})
+    )
+    monkeypatch.setattr(runner, "REPO_ROOT", repo)
+    monkeypatch.setattr(runner, "RUNS_DIR", runs_dir)
+    monkeypatch.setattr(runner.judge, "LABELS_PATH", labels_path)
+    monkeypatch.setattr(runner, "_latest_runs", lambda: ("20260101T000000Z", {}))
+    monkeypatch.setattr(
+        runner.judge,
+        "judge_all",
+        lambda *_args, **_kwargs: pytest.fail("dirty human labels must stop the judge"),
+    )
+
+    with pytest.raises(SystemExit, match="cambios sin commitear"):
+        runner.main(["--judge", "--max-usd", "1"])
+
+
+def test_round_two_judge_uses_round_two_file_and_mapping(tmp_path, monkeypatch):
+    stamp = "20260101T000000Z"
+    runs_dir = tmp_path / "runs"
+    runs_dir.mkdir()
+    labels_path = tmp_path / "labels" / "human_r2.json"
+    labels_path.parent.mkdir()
+    entries = [
+        {
+            "id": "anon-r2",
+            "message": "",
+            "evidence": "",
+            "reply": "",
+            "groundedness": True,
+            "quality": False,
+            "notes": "note",
+        }
+    ]
+    labels_path.write_text(json.dumps(entries))
+    (runs_dir / f"{stamp}-labels-r2-mapping.json").write_text(
+        json.dumps({"mapping": {"anon-r2": ["opus-5.5", "14-adv-mensaje-y-politica"]}})
+    )
+    summary = runner.Summary(
+        variant="opus-5.5",
+        n=1,
+        complete=True,
+        case_type_accuracy=(1, 1),
+        action_accuracy=(1, 1),
+        no_support_accuracy=(1, 1),
+        tools_coverage=1,
+        policy_recall=1,
+        by_vector={},
+        over_refusal=(0, 0),
+        over_refusal_pending_review=[],
+        heuristic_violations=[],
+        heuristic_v1_count=0,
+        cost_usd=0.1,
+        cost_per_case=0.1,
+        latency_p50_ms=1,
+        latency_p95_ms=1,
+    )
+    for variant in ("opus-5.5", "sonnet-5.5"):
+        variant_summary = runner.asdict(summary) | {"variant": variant}
+        (runs_dir / f"{stamp}-{variant}.json").write_text(json.dumps({"summary": variant_summary}))
+    evals_md = tmp_path / "EVALS.md"
+    evals_md.write_text(f"{runner.BEGIN}\nold\n{runner.END}\n")
+    guarded_paths = []
+    monkeypatch.setattr(runner, "RUNS_DIR", runs_dir)
+    monkeypatch.setattr(runner, "EVALS_MD", evals_md)
+    monkeypatch.setattr(runner.judge, "LABELS_R2_PATH", labels_path)
+    monkeypatch.setattr(
+        runner,
+        "require_committed_labels",
+        lambda path, _entries: guarded_paths.append(path),
+    )
+
+    async def fake_judge(blinded):
+        assert blinded == [{"id": "anon-r2", "message": "", "evidence": "", "reply": ""}]
+        return {"anon-r2": {"groundedness": True, "quality": True}}
+
+    monkeypatch.setattr(runner.judge, "judge_all", fake_judge)
+
+    runner.run_judge(1, round_number=2)
+
+    assert guarded_paths == [labels_path]
+    assert (runs_dir / f"{stamp}-judge-r2.json").is_file()
+    assert not (runs_dir / f"{stamp}-judge.json").exists()
+
+
+def test_make_round_two_judge_target_selects_round_two():
+    output = subprocess.run(
+        ["make", "-n", "evals-judge-round2", "MAX_USD=1"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=True,
+    ).stdout
+    assert "--judge --round 2" in output
+
+
+def test_make_round_two_template_target_selects_round_two():
+    output = subprocess.run(
+        ["make", "-n", "evals-label-template-r2"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        check=True,
+    ).stdout
+    assert "--label-template --round 2" in output
+
+
+def test_evals_marks_round_one_unverifiable_and_round_two_as_validation():
+    text = (REPO_ROOT / "EVALS.md").read_text()
+    assert "Ronda 1 — no verificable como ciega: etiquetas commiteadas después del juez" in text
+    assert "### Ronda 2 — validación" in text

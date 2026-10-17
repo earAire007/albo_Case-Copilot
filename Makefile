@@ -1,4 +1,4 @@
-.PHONY: check test lint check-docs dataset mock mcp smoke api console console-check evals evals-label-template evals-judge up
+.PHONY: check test lint check-docs dataset mock mcp smoke api console console-check evals evals-label-template evals-label-template-r2 evals-judge evals-judge-round2 evals-render up
 
 # Run before every commit: Claude Code hooks don't run outside that tool.
 check:
@@ -51,12 +51,22 @@ evals:
 
 # ~10 anonymous answers from the latest run for a person to label (never overwrites labels).
 evals-label-template:
-	PYTHONPATH=. uv run python -m evals.runner --label-template $(if $(LABEL_CASES),--label-cases $(LABEL_CASES),)
+	PYTHONPATH=. uv run python -m evals.runner --label-template --round 1 $(if $(LABEL_CASES),--label-cases $(LABEL_CASES),)
+
+evals-label-template-r2:
+	PYTHONPATH=. uv run python -m evals.runner --label-template --round 2
 
 # Blind judge over the labeled answers; agreement per variant into EVALS.md. Costs money:
 # MAX_USD is mandatory here too.
 evals-judge:
 	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python -m evals.runner --judge $(if $(MAX_USD),--max-usd $(MAX_USD),)
+
+evals-judge-round2:
+	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python -m evals.runner --judge --round 2 $(if $(MAX_USD),--max-usd $(MAX_USD),)
+
+evals-render:
+	@test -n "$(RUN_ID)" || (echo "RUN_ID es obligatorio: indica el id de la corrida guardada." >&2; exit 2)
+	PYTHONPATH=. uv run python -m evals.runner --render-run $(RUN_ID)
 
 up:
 	docker compose up --build

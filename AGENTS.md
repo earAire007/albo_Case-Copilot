@@ -38,9 +38,12 @@ make up                    # docker compose up --build: consola y API en http://
 make evals MAX_USD=5       # runner de evals con el modelo real (cuesta dinero; MAX_USD obligatorio)
 make evals-label-template  # plantilla anónima para etiquetar a mano
 make evals-judge           # juez a ciegas contra las etiquetas humanas (cuesta dinero)
+make evals-label-template-r2  # plantilla pareada de ronda 2 desde las mismas corridas guardadas
+make evals-judge-round2 MAX_USD=1  # juez de ronda 2; exige etiquetas versionadas, limpias y completas
+make evals-render RUN_ID=<timestamp>  # regenera la tabla desde una corrida guardada, sin modelo (cuesta dinero)
 ```
 
-`evals/labels/human.json` lo llena una persona, en un commit propio. Ningún agente lo escribe: la regla `deny` lo bloquea en Claude Code, pero no cubre redirecciones de shell.
+`evals/labels/human.json` y `evals/labels/human_r2.json` los llena una persona, en commits propios. Ningún agente llena sus etiquetas: la regla `deny` bloquea la edición en Claude Code; el juez además exige que el archivo elegido esté versionado, limpio y completo.
 
 ## Reglas no negociables
 
