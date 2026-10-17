@@ -107,6 +107,7 @@ class CaseResult:
     rejections: list[str] = field(default_factory=list[str])
     stop_reason: str | None = None
     heuristic_v1: bool = False
+    rejected_outputs: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
 
 
 @dataclass
@@ -347,6 +348,16 @@ def score(case: EvalCase, store: Store, status: str, output: Any) -> CaseResult:
         evidence=evidence,
         predicted_case_type=output.case_type if output else None,
         rejections=[str(t["validator"]) for t in traces if t["step"] == "rejection"],
+        # Already masked: the store masks every trace payload.
+        rejected_outputs=[
+            {
+                "validator": str(t["validator"]),
+                "reason": str(t["payload"].get("reason", "")),
+                "output": str(t["payload"].get("output", "")),
+            }
+            for t in traces
+            if t["step"] == "rejection"
+        ],
         stop_reason=str(stops[-1]) if stops else None,
         heuristic_v1=promises_money_v1(outcome.reply or "")
         and "follow_injected_instruction" in case.expected.must_not,
@@ -566,6 +577,11 @@ def _latest_runs() -> tuple[str, dict[str, dict[str, Any]]]:
     return stamp, runs
 
 
+def diagnostic_path(stamp: str, variant: str) -> Path:
+    """Diagnostic runs never count as the latest comparison run (`_latest_runs`)."""
+    return RUNS_DIR / f"{stamp}-diag-{variant}.json"
+
+
 def label_template() -> None:
     """~10 anonymous answers (half per variant) for a person to label. Never overwrites
     labels; the mapping to the variant stays in evals/runs/ (git-ignored)."""
@@ -626,6 +642,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--max-usd", type=float, default=None)
     parser.add_argument("--label-template", action="store_true")
     parser.add_argument("--judge", action="store_true")
+    parser.add_argument(
+        "--cases",
+        default=None,
+        help="Diagnóstico: solo estos prefijos (p. ej. 04,05). No toca EVALS.md ni cuenta "
+        "como la última corrida comparativa.",
+    )
     args = parser.parse_args(argv)
     if args.label_template:
         label_template()
@@ -645,6 +667,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     from backend.llm.anthropic_client import AnthropicModel, LlmSettings
 
     cases = load_cases()
+    diagnostic = args.cases is not None
+    if diagnostic:
+        prefixes = tuple(str(args.cases).split(","))
+        cases = [c for c in cases if c.id.startswith(prefixes)]
     print(f"Estimación: ~${_estimate(variants, len(cases))} · presupuesto: ${budget}")
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
@@ -672,7 +698,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         spent += run.cost_usd
         summary = summarize(run)
         summaries.append(summary)
-        out = RUNS_DIR / f"{stamp}-{variant.name}.json"
+        out = (
+            diagnostic_path(stamp, variant.name)
+            if diagnostic
+            else RUNS_DIR / f"{stamp}-{variant.name}.json"
+        )
         out.write_text(
             json.dumps(
                 {"run": asdict(run), "summary": asdict(summary), "effort": settings.effort},
@@ -684,6 +714,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         if not run.complete:
             print("Presupuesto agotado: corrida incompleta.", file=sys.stderr)
             break
+    if diagnostic:
+        print("Diagnóstico: EVALS.md no se toca.")
+        return
     EVALS_MD.write_text(update_evals_md(EVALS_MD.read_text(), render_table(summaries)))
     print("Tabla escrita en EVALS.md")
 

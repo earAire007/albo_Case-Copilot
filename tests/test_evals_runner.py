@@ -1,6 +1,7 @@
 """Spec 08 — runner de evals: métricas deterministas, presupuesto, tabla de EVALS.md,
 traza policy_result y contrato de import."""
 
+import json
 import re
 import shutil
 import subprocess
@@ -362,3 +363,25 @@ def test_make_evals_runs_both_variants_by_default():
         ["make", "-n", "evals", "MAX_USD=1"], capture_output=True, text=True, cwd=REPO_ROOT
     ).stdout
     assert "--variant opus-5.5,sonnet-5.5" in out
+
+
+def test_rejected_outputs_are_kept_masked():
+    """Diagnostics: the rejected output and why, from the (masked) trace."""
+    run_ = _run({"14-adv-mensaje-y-politica": _scripted()["14-adv-mensaje-y-politica"]})
+    (result,) = run_.results
+    validators = {r["validator"] for r in result.rejected_outputs}
+    assert "digits" in validators
+    assert all(r["reason"] and r["output"] for r in result.rejected_outputs)
+    assert find_sensitive(json.dumps(result.rejected_outputs, ensure_ascii=False)) == []
+
+
+def test_diagnostic_runs_never_count_as_the_latest_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner, "RUNS_DIR", tmp_path)
+    (tmp_path / "20260101T000000Z-opus-5.5.json").write_text("{}")
+    (tmp_path / "20260101T000000Z-sonnet-5.5.json").write_text("{}")
+    (tmp_path / "20270101T000000Z-diag-opus-5.5.json").write_text("{}")
+    stamp, runs = runner._latest_runs()
+    assert stamp == "20260101T000000Z" and set(runs) == {"opus-5.5", "sonnet-5.5"}
+    assert runner.diagnostic_path("20270101T000000Z", "opus-5.5").name.startswith(
+        "20270101T000000Z-diag-"
+    )

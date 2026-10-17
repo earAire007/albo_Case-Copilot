@@ -47,7 +47,7 @@ console:
 # (A literal comma inside $(or ...) splits arguments: keep the list in a variable.)
 DEFAULT_VARIANTS := opus-5.5,sonnet-5.5
 evals:
-	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python -m evals.runner --variant $(or $(VARIANT),$(DEFAULT_VARIANTS)) $(if $(MAX_USD),--max-usd $(MAX_USD),)
+	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python -m evals.runner --variant $(or $(VARIANT),$(DEFAULT_VARIANTS)) $(if $(MAX_USD),--max-usd $(MAX_USD),) $(if $(CASES),--cases $(CASES),)
 
 # ~10 anonymous answers from the latest run for a person to label (never overwrites labels).
 evals-label-template:
