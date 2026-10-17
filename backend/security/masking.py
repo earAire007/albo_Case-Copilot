@@ -4,8 +4,9 @@
 - RFC, CURP and long_number -> fully replaced by a type tag (`[RFC]`, `[CURP]`,
   `[LONG_NUMBER]`): their last characters don't identify anything to the customer.
 - Known sensitive fields are masked by name; every other string goes through
-  `find_sensitive` (spec 01b) with the same rules. `tracking_key` is never masked: it is
-  needed to query SPEI status and resend the CEP.
+  `find_sensitive` (spec 01b) with the same rules. A SPEI tracking key (`CC` + 18
+  digits) passes untouched because the detector excludes that exact format; there is no
+  exemption by field name, so a CLABE placed in `tracking_key` is still masked.
 
 Pure function: returns a new structure, never mutates the input.
 """
@@ -23,7 +24,6 @@ SENSITIVE_FIELDS: dict[str, Kind] = {
     "rfc": "rfc",
     "curp": "curp",
 }
-EXEMPT_FIELDS = frozenset({"tracking_key"})
 _LAST4_KINDS: frozenset[Kind] = frozenset({"clabe", "card"})
 
 
@@ -54,7 +54,7 @@ def mask(value: Json, field: str | None = None) -> Json:
         return {key: mask(item, key) for key, item in value.items()}
     if isinstance(value, list):
         return [mask(item, field) for item in value]
-    if not isinstance(value, str) or field in EXEMPT_FIELDS:
+    if not isinstance(value, str):
         return value
     if field is not None and field in SENSITIVE_FIELDS:
         return _render(SENSITIVE_FIELDS[field], value)
