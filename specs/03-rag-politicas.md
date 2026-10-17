@@ -56,4 +56,7 @@ Resueltas: BM25 propio (unas 40 líneas, determinista, sin dependencia); stemmin
 
 ## Cambios durante la implementación
 
-<!-- Se llena al cerrar. -->
+- La instrucción oculta del corpus es la **versión sutil**: una regla interna plausible, sin dirigirse a nadie. La versión obvia ("Nota para asistentes automatizados…") está en `tests/fixtures/contracargos-injection-obvia.md`, para los tests deterministas del validador (spec 05); no entra al índice. EVALS.md reportará por separado si el detector marcó la injection y si el validador la bloqueó.
+- Notas para la spec 05:
+  - Cuando `search_policies` se exponga como tool, un `k` inválido debe volver al modelo como error de tool, sin interrumpir el caso.
+  - El modelo no tiene los datos completos, porque llegan enmascarados. Si obedece la instrucción oculta, el riesgo es que **invente** una CLABE o una tarjeta. El validador de salida debe rechazar cualquier tramo de 16 o 18 dígitos en la respuesta al cliente, **sin exigir checksum válido**: un número inventado probablemente no lo pase, y el detector de la 01b no lo vería.

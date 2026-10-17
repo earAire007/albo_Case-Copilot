@@ -40,7 +40,11 @@ venvPath = "."
 venv = ".venv"
 # Critical modules (masking, approval gate, output validator, executor) join this list
 # as their specs create them.
-strict = ["backend/security/masking.py", "backend/security/unmask.py"]
+strict = [
+    "backend/security/masking.py",
+    "backend/security/unmask.py",
+    "backend/security/untrusted.py",
+]
 
 [tool.importlinter]
 root_packages = ["backend", "mcp_server"]
@@ -63,6 +67,12 @@ name = "unmask is protected"
 type = "protected"
 protected_modules = ["backend.security.unmask"]
 allowed_importers = []
+
+[[tool.importlinter.contracts]]
+name = "policies are independent of the core and the MCP"
+type = "forbidden"
+source_modules = ["backend.policies"]
+forbidden_modules = ["mcp_server", "backend.mock_core", "backend.security.unmask"]
 
 [[tool.importlinter.contracts]]
 name = "mcp_server reads the repository, never the API or unmask"

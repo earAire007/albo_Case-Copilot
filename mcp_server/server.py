@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field, ValidationError
 from backend.domain.models import Transaction, TxnStatus, TxnType
 from backend.mock_core.repository import CoreRepository, InvalidCursorError
 from backend.security.masking import Json, mask, mask_text
+from backend.security.untrusted import wrap_untrusted
 
 MAX_PAGE_SIZE = 20
 NOT_FOUND = "transaction not found"
@@ -54,8 +55,14 @@ CARD_AUTH_FIELDS = (
 def _outbound(payload: dict[str, Json]) -> dict[str, Json]:
     shaped: dict[str, Json] = {}
     for key, value in payload.items():
-        if key in UNTRUSTED_FIELDS and value is not None:
-            value = {"untrusted_text": value, "source": UNTRUSTED_FIELDS[key]}
+        if key in UNTRUSTED_FIELDS and isinstance(value, str):
+            wrapped = wrap_untrusted(value, UNTRUSTED_FIELDS[key])
+            envelope: dict[str, Json] = {
+                "untrusted_text": wrapped["untrusted_text"],
+                "source": wrapped["source"],
+            }
+            shaped[key] = envelope
+            continue
         shaped[key] = value
     return mask(shaped)
 
