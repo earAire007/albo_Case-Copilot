@@ -120,6 +120,35 @@ def test_digit_runs_are_rejected_without_checksum(dup_tools, reply):
     assert "digits" in _validators(output_json(customer_reply=reply), dup_tools, DUP_CHUNKS)
 
 
+# Spec 07 (security-reviewer): separators outside [\s.\-/_] and invisible characters.
+NEW_SEPARATORS = [
+    ",", "*", "+", "·", "–", "‐", "​", "­", ", ", " * ",
+    ":", "：", ": ",  # colons: only well-formed times are exempt (B1)
+    "x", "ab", "ㅤ",  # 1-3 letters without spaces, incl. a blank-looking letter (N1)
+]  # fmt: skip
+
+
+@pytest.mark.parametrize("reply", ["CLABE 64:61:80:19:83:84:02:00:99", "9759:6596:7166:5088"])
+def test_colon_split_digit_runs_are_rejected(dup_tools, reply):
+    assert "digits" in _validators(output_json(customer_reply=reply), dup_tools, DUP_CHUNKS)
+
+
+@pytest.mark.parametrize("sep", NEW_SEPARATORS)
+def test_digit_runs_with_new_separators_are_rejected(dup_tools, sep):
+    reply = "CLABE " + sep.join(["646180", "522488", "216773"])
+    assert "digits" in _validators(output_json(customer_reply=reply), dup_tools, DUP_CHUNKS)
+
+
+def test_digit_runs_with_fullwidth_digits_are_rejected(dup_tools):
+    reply = "CLABE ６４６１８０５２２４８８２１６７７３"
+    assert "digits" in _validators(output_json(customer_reply=reply), dup_tools, DUP_CHUNKS)
+
+
+@pytest.mark.parametrize("reply", ["El cargo fue el 2026-07-18 14:32:10.", "Monto: $4,899.00"])
+def test_timestamps_and_amounts_are_not_digit_runs(dup_tools, reply):
+    assert "digits" not in _validators(output_json(customer_reply=reply), dup_tools, DUP_CHUNKS)
+
+
 def test_tracking_key_is_allowed_in_reply(raw_transactions):
     spei = next(t for t in raw_transactions if t["id"] == "txn_0161")
     tools = mcp_tool_results("cus_003", [("get_spei_status", {"txn_id": "txn_0161"})])

@@ -12,6 +12,7 @@ from evals.schema import load_cases
 
 from .spec06_helpers import case_with_proposal, client_for, post_ticket, work
 from .test_loop import FakeModel, call, final, run, step, steps_of
+from .test_validators import NEW_SEPARATORS
 
 TRACKING_KEY = "CC202608196242461589"  # txn_0060, spei_in of cus_004
 
@@ -63,6 +64,63 @@ def test_edit_reply_rejects_unproven_tracking_key(raw_customers):
     disguised = "CC" + raw_customers[0]["clabe"]  # tracking-key format, not from the tools
     response = _edit(client, case_id, f"Tu clave de rastreo es {disguised}")
     assert response.status_code == 422
+    assert client.get(f"/cases/{case_id}").json()["final_reply"] is None
+
+
+@pytest.mark.parametrize("sep", NEW_SEPARATORS)
+def test_edit_reply_rejects_new_separators(raw_customers, sep):
+    store = Store(":memory:")
+    client = client_for(store)
+    case_id = _answered_case_with_spei(store, client)
+    clabe = raw_customers[0]["clabe"]
+    text = "Tu CLABE " + sep.join([clabe[:6], clabe[6:12], clabe[12:]])
+    assert _edit(client, case_id, text).status_code == 422
+
+
+@pytest.mark.parametrize("text", ["Lo vimos el 2026-07-18 14:32:10.", "Te cobraron $4,899.00."])
+def test_edit_reply_accepts_timestamps_and_amounts(text):
+    store = Store(":memory:")
+    client = client_for(store)
+    case_id = _answered_case_with_spei(store, client)
+    assert _edit(client, case_id, text).status_code == 200
+
+
+def _spaced(value: str, cuts: tuple[int, ...]) -> str:
+    parts, start = [], 0
+    for cut in (*cuts, len(value)):
+        parts.append(value[start:cut])
+        start = cut
+    return " ".join(parts)
+
+
+def test_edit_reply_rejects_rfc_and_curp_in_any_spelling(raw_customers):
+    store = Store(":memory:")
+    client = client_for(store)
+    case_id = _answered_case_with_spei(store, client)
+    rfc, curp = raw_customers[0]["rfc"], raw_customers[0]["curp"]
+    fullwidth = "".join(chr(ord(c) + 0xFEE0) for c in rfc)
+    for value in (
+        rfc,
+        rfc.lower(),
+        curp.lower(),
+        _spaced(rfc, (4, 10)),
+        _spaced(curp.lower(), (4, 10)),
+        fullwidth,
+        # Same separator class as the digit rule (N2).
+        *(sep.join([rfc[:4], rfc[4:10], rfc[10:]]) for sep in ("_", "/", "–", ", ", ":")),
+        f"{curp[:4]}:{curp[4:]}",
+        # A neighbouring digit must not glue onto the identifier and hide it (R1).
+        f"Ref 1 {rfc}",
+        f"{rfc} 1",
+        f"{rfc}, 2",
+        f"a las 14:32 {rfc}",
+        f"Caso 7 {curp}.",
+        f"{curp} 9",
+        f"1 {rfc.lower()}",
+        f"12 {_spaced(rfc.lower(), (4, 10))}",
+    ):
+        response = _edit(client, case_id, f"Tu dato es {value}.")
+        assert response.status_code == 422, value
     assert client.get(f"/cases/{case_id}").json()["final_reply"] is None
 
 

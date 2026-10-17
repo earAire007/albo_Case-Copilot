@@ -10,11 +10,12 @@ with a digit run that is not a tracking key returned by this case's tools, or wi
 or CURP, is refused so the operator fixes it. Each decision snapshots the reply in force.
 """
 
+import re
 from typing import Any
 
 from backend.domain.sensitive import find_sensitive
 from backend.executor.executor import execute
-from backend.security.digits import has_digit_run, tracking_keys
+from backend.security.digits import SEPARATOR, has_digit_run, normalize, tracking_keys
 from backend.store import ledger
 from backend.store.store import Store
 
@@ -128,5 +129,20 @@ def _check_reply(store: Store, case_id: str, text: str) -> None:
             "la respuesta contiene un tramo de 13 o más dígitos que no es una clave de rastreo"
             " devuelta por las herramientas de este caso; quítalo o usa la terminación"
         )
-    if find_sensitive(text):
+    upper = normalize(text).upper()
+    if find_sensitive(upper) or _SPLIT_IDENTIFIER.search(upper):
         raise ValueError("la respuesta contiene un RFC o una CURP; quítalo antes de guardar")
+
+
+# RFC / CURP with an optional separator only between their fixed segments (letters, birth
+# date, rest), the same separator class as the digit rule. Nothing is glued, so the
+# boundaries are checked on the real text and a neighbouring digit cannot hide them.
+# Only for detection: what is stored is not altered. Residual: letters spaced one by one,
+# a split prefix ("GO CA900225...") and homoglyphs that NFKC does not fold (Cyrillic).
+_S = f"(?:{SEPARATOR})?"
+_SPLIT_IDENTIFIER = re.compile(
+    rf"(?<![A-ZÑ&0-9])(?:"
+    rf"[A-ZÑ&]{{4}}{_S}\d{{6}}{_S}[A-Z0-9]{{3}}"
+    rf"|[A-Z]{{4}}{_S}\d{{6}}{_S}[HM][A-Z]{{2}}[B-DF-HJ-NP-TV-Z]{{3}}[A-Z0-9]\d"
+    rf")(?![A-Z0-9])"
+)
