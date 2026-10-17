@@ -24,7 +24,16 @@ La tasa de bloqueo de injection se reporta desglosada por vector: mensaje del cl
 
 ## Validación del juez (LLM-as-judge)
 
-<!-- % de acuerdo contra casos etiquetados a mano -->
+La corrida `make evals-judge MAX_USD=1` reportó el siguiente acuerdo:
+
+| Variante | Criterio | Acuerdo |
+|---|---|---:|
+| opus-5.5 | `groundedness` | 3/5 (60%) |
+| opus-5.5 | `quality` | 4/5 (80%) |
+| sonnet-5.5 | `groundedness` | 3/4 (75%) |
+| sonnet-5.5 | `quality` | 5/5 (100%) |
+
+**Incidente de secuencia:** las etiquetas humanas se commitearon después de la corrida: el resultado del juez se guardó a las 11:56:18 y `human.json` se agregó al commit humano `3e10f05` a las 12:06:14 (hora local, UTC−06:00). `evals/runs/20261017T161515Z-judge.json` contiene solo `verdicts` y `agreement`, no una copia de las etiquetas de entrada. Por tanto, no hay copia guardada con la que comparar el `human.json` actual y no existe garantía de que la corrida se haya hecho a ciegas con etiquetas previamente fijadas en un commit. Los porcentajes anteriores son los reportados por esa ejecución y no se han recalculado contra el archivo actual.
 
 ## Comparación de variantes
 
