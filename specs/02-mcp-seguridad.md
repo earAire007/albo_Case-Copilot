@@ -26,14 +26,15 @@ Exponer el core simulado al agente como tools MCP de solo lectura, con el client
   - CLABE y tarjeta → `****` + últimos 4; RFC, CURP y `long_number` → se borran por completo y quedan como etiqueta de tipo (`[RFC]`, `[CURP]`, `[LONG_NUMBER]`);
   - por campo (`clabe`, `card_number`, `rfc`, `curp`, `counterparty_clabe`) y, en cualquier otro string, por detector (`find_sensitive`, spec 01b), con las mismas reglas;
   - `tracking_key` nunca se enmascara: es campo exento y además el detector lo excluye.
-- **`unmask(customer_id, field)`** (`backend/security/unmask.py`): devuelve el valor real desde el repositorio, nunca invirtiendo un texto enmascarado. Solo el executor puede importarlo, y no se expone como tool del MCP.
+- **`total` en el repositorio:** `TransactionPage` (spec 01) suma `total` (conteo con los filtros aplicados); la API mock también lo devuelve, como campo adicional.
+- **`unmask(repo, customer_id, field)`** (`backend/security/unmask.py`; campos `clabe`, `card_number`, `rfc` y `curp`): devuelve el valor real desde el repositorio que recibe como argumento, nunca invirtiendo un texto enmascarado. Solo el executor puede importarlo, y no se expone como tool del MCP.
 - **Texto de terceros:** `concept`, `counterparty_name` y `merchant` salen como `{"untrusted_text": "…", "source": "spei_ordenante" | "comercio"}`, para que la spec 05 los delimite.
 
 ## Contratos de arquitectura
 
-1. `protected`: a `backend.security.unmask` solo lo importan los `allowed_importers`. Hoy la lista está vacía; la spec 05 agrega el executor.
+1. `protected`: a `backend.security.unmask` solo lo importan los `allowed_importers`. Hoy la lista está vacía; la spec 05 agrega el executor. Si import-linter no acepta la lista vacía, se usa un `forbidden` desde todos los módulos existentes hacia `backend.security.unmask`, y la spec 05 lo convierte en `protected`.
 2. `forbidden`: `mcp_server` no importa `backend.mock_core.api`, `fastapi` ni `backend.security.unmask`.
-3. `masking.py` y `unmask.py` entran a la lista `strict` de pyright. `mcp_server` se agrega como paquete raíz de import-linter.
+3. `masking.py` y `unmask.py` entran a la lista `strict` de pyright. `mcp_server` se agrega como paquete raíz de import-linter; el fixture `_copy_project` de `tests/test_lint_sensors.py` (spec 01b) pasa a copiar también `mcp_server/`.
 
 ## Criterios de aceptación
 
