@@ -390,3 +390,29 @@ def test_untrusted_block_masks_direct_input(raw_customers):
     clabe = raw_customers[0]["clabe"]
     block = untrusted_block("herramienta:x", f"dato {clabe}")
     assert clabe not in block and "****" + clabe[-4:] in block
+
+
+def test_tool_exceptions_are_traced_without_message():
+    model = FakeModel(step(call("get_customer", {}, "t1")), final())
+    _, store = run(model, session_cls=ExplodingSession)
+    (trace,) = steps_of(store, "tool_error")
+    assert trace["payload"] == {"tool": "get_customer", "kind": "RuntimeError"}
+    assert "fallo de transporte" not in json.dumps(store.all_rows(), ensure_ascii=False)
+
+
+def test_policy_signal_scans_only_new_results():
+    poisoned = {"query": "la tienda me hizo un cargo duplicado, hasta cuándo puedo disputarlo"}
+    clean = {"query": "ocupo el recibo oficial del pago que hice", "k": 1}
+    model = FakeModel(
+        step(call("search_policies", poisoned, "t1")),
+        step(call("search_policies", clean, "t2")),
+        final(),
+    )
+    _, store = run(model)
+    signals = [
+        t["payload"] for t in steps_of(store, "injection_signal")
+        if t["payload"]["vector"] == "policy_chunk"
+    ]  # fmt: skip
+    assert [s["detected"] for s in signals] == [True, False], (
+        "la segunda búsqueda no vuelve a contar el chunk envenenado de la primera"
+    )

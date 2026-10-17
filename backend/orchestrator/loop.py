@@ -160,8 +160,10 @@ async def _run_tool(
     source = f"herramienta:{call.name}"
     try:
         is_error, text = await session.call_tool(call.name, call.input)
-    except Exception:
-        # Never echo the exception: it may carry anything. The model gets a tool error.
+    except Exception as exc:
+        # Never echo the exception: it may carry anything. Ops get its type; the model
+        # gets a generic tool error.
+        store.add_trace(ctx.case_id, "tool_error", {"tool": call.name, "kind": type(exc).__name__})
         return True, untrusted_block(source, "error al ejecutar la herramienta")
     if is_error:
         return True, untrusted_block(source, text)
