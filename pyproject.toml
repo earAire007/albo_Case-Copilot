@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Copiloto de Casos: agente que investiga casos de clientes y propone resoluciones con aprobación humana."
 requires-python = ">=3.12"
 dependencies = [
+    "anthropic>=1.15.0",
     "fastapi>=0.115",
     "mcp>=2.3.0",
     "pydantic>=2.9",
@@ -81,7 +82,14 @@ forbidden_modules = [
     "backend.security.unmask",
     "evals",
     "backend.mock_core.api",
+    "backend.llm",
 ]
+
+[[tool.importlinter.contracts]]
+name = "llm adapter is isolated: no store, executor, unmask or evals"
+type = "forbidden"
+source_modules = ["backend.llm"]
+forbidden_modules = ["backend.store", "backend.executor", "backend.security.unmask", "evals"]
 
 [[tool.importlinter.contracts]]
 name = "orchestrator never executes or unmasks"

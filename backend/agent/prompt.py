@@ -49,6 +49,11 @@ def _block(source: str, content: str, chunk_id: str | None = None) -> str:
     return f"{OPEN_TAG}{attrs}>\n{_escape(content)}\n{CLOSE_TAG}"
 
 
+def untrusted_block(source: str, content: str) -> str:
+    """One untrusted piece, masked and delimited: tool results in the 05b loop."""
+    return _block(source, mask_text(content))
+
+
 def build_prompt(
     ctx: CaseContext,
     tool_results: Sequence[ToolResult],

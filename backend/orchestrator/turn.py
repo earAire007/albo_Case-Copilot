@@ -42,16 +42,28 @@ def run_turn(
 
     output, rejections = evaluate(raw, ctx, tool_results, {c["id"] for c in chunks})
     if rejections or output is None:
-        for rejection in rejections:
-            store.add_trace(
-                ctx.case_id,
-                "rejection",
-                {"reason": rejection.reason, "output": raw},
-                validator=rejection.validator,
-            )
+        record_rejections(store, ctx, raw, rejections)
         return TurnResult("requires_human", rejections=rejections)
+    return conclude(store, ctx, output)
 
+
+def record_rejections(
+    store: Store, ctx: CaseContext, raw: str, rejections: Sequence[Rejection]
+) -> None:
+    """Every rejection is traced with its validator (rejected-outputs metric)."""
+    for rejection in rejections:
+        store.add_trace(
+            ctx.case_id,
+            "rejection",
+            {"reason": rejection.reason, "output": raw},
+            validator=rejection.validator,
+        )
+
+
+def conclude(store: Store, ctx: CaseContext, output: AgentOutput) -> TurnResult:
+    """A validated output: answer, or a pending proposal. Never executes."""
     store.add_trace(ctx.case_id, "validation", {"status": "ok"})
+    store.add_trace(ctx.case_id, "reasoning_summary", {"text": output.reasoning_summary})
     if output.action is None:
         return TurnResult("answered", output=output)
     proposal_id = store.create_proposal(

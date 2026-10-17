@@ -1,4 +1,4 @@
-.PHONY: check test lint check-docs dataset mock mcp
+.PHONY: check test lint check-docs dataset mock mcp smoke
 
 # Run before every commit: Claude Code hooks don't run outside that tool.
 check:
@@ -26,3 +26,7 @@ mock:
 
 mcp:
 	uv run python -m mcp_server --customer-id $(CUSTOMER)
+
+# Real model, costs money, not deterministic: outside `make check`.
+smoke:
+	uv run python scripts/smoke.py
