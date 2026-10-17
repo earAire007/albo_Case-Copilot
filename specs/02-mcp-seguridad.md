@@ -21,11 +21,12 @@ Exponer el core simulado al agente como tools MCP de solo lectura, con el client
   - `list_transactions(type?, status?, from?, to?, cursor?, limit ≤ 20)` devuelve `{items, total, has_more, next_cursor}`, donde `total` cuenta los movimientos que cumplen el filtro; nunca el historial completo;
   - `get_spei_status(txn_id)` y `get_card_authorization(txn_id)`.
 
-  Un `txn_id` de otro cliente o del tipo equivocado da el mismo error que uno inexistente.
+  Un `txn_id` de otro cliente o del tipo equivocado da el mismo error que uno inexistente. Una llamada con argumentos fuera del esquema de la tool (p. ej., `customer_id`) se **rechaza** con error, antes de ejecutarla.
 - **`mask(obj)`** (`backend/security/masking.py`), aplicado a **toda** respuesta antes de salir del servidor:
   - CLABE y tarjeta → `****` + últimos 4; RFC, CURP y `long_number` → se borran por completo y quedan como etiqueta de tipo (`[RFC]`, `[CURP]`, `[LONG_NUMBER]`);
   - por campo (`clabe`, `card_number`, `rfc`, `curp`, `counterparty_clabe`) y, en cualquier otro string, por detector (`find_sensitive`, spec 01b), con las mismas reglas;
-  - `tracking_key` nunca se enmascara: es campo exento y además el detector lo excluye.
+  - `tracking_key` no se enmascara si tiene el formato de clave de rastreo (`CC` + 18 dígitos; excepción del detector). No hay exención por nombre de campo: una CLABE en ese campo se enmascara.
+  - Los textos de error de las tools (incluida la validación de argumentos del SDK) y los logs del servidor también pasan por el enmascarado.
 - **`total` en el repositorio:** `TransactionPage` (spec 01) suma `total` (conteo con los filtros aplicados); la API mock también lo devuelve, como campo adicional.
 - **`unmask(repo, customer_id, field)`** (`backend/security/unmask.py`; campos `clabe`, `card_number`, `rfc` y `curp`): devuelve el valor real desde el repositorio que recibe como argumento, nunca invirtiendo un texto enmascarado. Solo el executor puede importarlo, y no se expone como tool del MCP.
 - **Texto de terceros:** `concept`, `counterparty_name` y `merchant` salen como `{"untrusted_text": "…", "source": "spei_ordenante" | "comercio"}`, para que la spec 05 los delimite.
@@ -38,10 +39,10 @@ Exponer el core simulado al agente como tools MCP de solo lectura, con el client
 
 ## Criterios de aceptación
 
-1. `test_mcp_exposes_no_money_moving_tool`: el listado de tools es exactamente esas 4, todas con `readOnlyHint`, y ningún nombre coincide con `refund|reembols|transfer|pay|pago|send|withdraw|retiro`.
-2. `test_mcp_tools_ignore_model_supplied_customer_id`: ningún esquema tiene `customer_id`; una llamada que agrega el `customer_id` de otro cliente se rechaza o se ignora y nunca devuelve datos ajenos; en el escenario `adv_other_account`, los `txn_id` del cliente objetivo dan "no encontrado".
-3. `test_mask_applied_before_model_and_traces`: para los 20 clientes, ninguna respuesta serializada de ninguna tool tiene hallazgos de `find_sensitive`. El MCP es la única salida de datos hacia el modelo y las trazas; las trazas persistidas siguen pendientes de la spec 05.
-4. `test_mask_reuses_detector_and_keeps_tracking_key`: la `tracking_key` sale intacta en `get_spei_status`; una CLABE dentro de texto libre sale como `****` + últimos 4, y un RFC, una CURP o un `long_number` salen como su etiqueta, sin dígitos residuales.
+1. `test_mcp_exposes_no_money_moving_tool`: el listado de tools es **exactamente** esas 4 (la garantía es el conjunto cerrado; `readOnlyHint` y la lista de palabras prohibidas son chequeos adicionales).
+2. `test_mcp_tools_ignore_model_supplied_customer_id`: ningún esquema tiene `customer_id`; una llamada real que agrega el `customer_id` de otro cliente se rechaza con error y nunca devuelve datos ajenos; en el escenario `adv_other_account`, los `txn_id` del cliente objetivo dan "no encontrado".
+3. `test_mask_applied_before_model_and_traces`: para los 20 clientes, cada tool que devuelve `list_tools` (no una lista fija, para cubrir tools futuras) se llama con todos sus argumentos posibles, y ninguna respuesta serializada, de éxito o de error, tiene hallazgos de `find_sensitive` ni contiene los valores reales del cliente. El MCP es la única salida de datos hacia el modelo y las trazas; las trazas persistidas siguen pendientes de la spec 05.
+4. `test_mask_reuses_detector_and_keeps_tracking_key`: la `tracking_key` sale intacta en `get_spei_status`; una CLABE en `tracking_key`, en un argumento inválido o dentro de texto libre sale como `****` + últimos 4, y un RFC, una CURP o un `long_number` salen como su etiqueta, sin dígitos residuales.
 5. `test_untrusted_fields_are_marked`: los tres campos salen envueltos, y el `concept` del escenario `adv_tool_result_injection` llega intacto dentro de `untrusted_text`.
 6. `test_list_transactions_is_capped`: `limit > 20` se rechaza, y la paginación recorre todo sin repetir ni omitir.
 7. `test_list_transactions_reports_total_and_has_more`: con más de 20 movimientos, la primera página trae `total` igual al conteo real, `has_more = true` y cursor; en la última página, `has_more = false` y sin cursor.
@@ -62,7 +63,6 @@ Resueltas:
 Riesgos:
 
 - **A 10x casos, una sesión MCP por caso** (proceso o sesión en memoria) multiplica el arranque y la memoria. Mitigación posible: un pool de sesiones reutilizables que se vuelven a fijar por caso; no entra aquí.
-- **Tiempo:** el máximo es 60 min. Si falta tiempo se recorta el arranque por stdio (basta la sesión en memoria); la seguridad no se recorta.
 - **Proceso:** el subagente `security-reviewer` corre antes de cada commit de `mcp_server/` (lo exige `CLAUDE.md`).
 
 ## Cambios durante la implementación
