@@ -29,7 +29,7 @@ LONG_NUMBER_MIN = 20
 
 _DIGIT_RUN = re.compile(r"(?<!\d)\d+(?!\d)")
 _GROUPED = re.compile(r"(?<!\d)\d{3,}(?:[ -]\d{3,})*[ -]\d+(?!\d)")
-_TRACKING_KEY = re.compile(r"(?<![A-Za-z0-9])CC(\d{18})(?!\d)")
+TRACKING_KEY_RE = re.compile(r"(?<![A-Za-z0-9])CC(\d{18})(?!\d)")
 _CURP = re.compile(rf"(?<![A-Z0-9]){CURP_RE.pattern}(?![A-Z0-9])")
 _RFC = re.compile(rf"(?<![A-ZÑ&0-9]){RFC_RE.pattern}(?![A-Z0-9])")
 
@@ -54,7 +54,7 @@ def _overlaps(start: int, end: int, spans: list[tuple[int, int]]) -> bool:
 
 
 def _numeric_findings(text: str) -> list[Finding]:
-    tracking = [m.span(1) for m in _TRACKING_KEY.finditer(text)]
+    tracking = [m.span(1) for m in TRACKING_KEY_RE.finditer(text)]
     findings: list[Finding] = []
     for m in _DIGIT_RUN.finditer(text):
         if m.span() in tracking:

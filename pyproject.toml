@@ -44,6 +44,9 @@ strict = [
     "backend/security/masking.py",
     "backend/security/unmask.py",
     "backend/security/untrusted.py",
+    "backend/agent/validators.py",
+    "backend/agent/prompt.py",
+    "backend/executor/executor.py",
 ]
 
 [tool.importlinter]
@@ -61,12 +64,30 @@ type = "forbidden"
 source_modules = ["backend.domain"]
 forbidden_modules = ["fastapi", "uvicorn", "backend.mock_core"]
 
-# Invariant 4: only the executor (spec 05) may import unmask. Today no allowed importer.
+# Invariant 4: only the executor may import unmask.
 [[tool.importlinter.contracts]]
 name = "unmask is protected"
 type = "protected"
 protected_modules = ["backend.security.unmask"]
-allowed_importers = []
+allowed_importers = ["backend.executor"]
+
+[[tool.importlinter.contracts]]
+name = "agent is pure: no store, executor, unmask, evals or API"
+type = "forbidden"
+source_modules = ["backend.agent"]
+forbidden_modules = [
+    "backend.store",
+    "backend.executor",
+    "backend.security.unmask",
+    "evals",
+    "backend.mock_core.api",
+]
+
+[[tool.importlinter.contracts]]
+name = "orchestrator never executes or unmasks"
+type = "forbidden"
+source_modules = ["backend.orchestrator"]
+forbidden_modules = ["backend.executor", "backend.security.unmask"]
 
 [[tool.importlinter.contracts]]
 name = "the agent never imports eval labels"

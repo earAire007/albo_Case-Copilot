@@ -81,4 +81,10 @@ Riesgo: el alcance es justo para el tiempo. Si falta, se recorta primero la part
 
 ## Cambios durante la implementación
 
-<!-- Se llena al cerrar. -->
+- Residuales del validador de dígitos y del escape (security-reviewer; no bloquean, porque fallan del lado seguro o el modelo no tiene datos reales):
+  - Pasan: comas o dos puntos como separador, paréntesis, letras pegadas a los dígitos y separadores de varios caracteres. Agregar separadores uno por uno es una carrera sin fin; la alternativa robusta es contar dígitos en una ventana (unos 40 caracteres), después de quitar fechas y montos reconocidos.
+  - Falsos positivos: dos fechas unidas por una palabra corta ("del 01/10/2026 al 15/10/2026"), o un folio junto a una fecha. El caso va a humano: baja la tasa de casos resueltos sin intervención, pero no deja pasar nada. Corrección: quitar fechas antes de buscar, con tests de "no rechaza".
+  - El escape no cubre parecidos que NFKC no convierte (`〈`, `‹`, `˂`). No son `<`, así que no forman etiqueta; el riesgo es solo que el modelo los lea como cierre.
+- Pendientes para la spec 06 (hallazgos del security-reviewer):
+  - **El registro de decisiones y ejecuciones está abierto:** cualquier módulo con un `Store` puede registrar una aprobación (`record_decision` acepta cualquier `approver`) o una ejecución (`record_execution` no verifica la aprobación). Esa escritura debe moverse a un módulo `backend.approval`, con un contrato que lo prohíba desde `backend.orchestrator` y `backend.agent`.
+  - **`proposals` no guarda el `customer_id` del caso.** El executor real lo necesitará para `unmask`; debe guardarse al crear la propuesta, desde el contexto del caso.
