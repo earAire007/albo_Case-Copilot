@@ -1,6 +1,6 @@
 # Spec 07 — Consola de operaciones
 
-**Estado:** borrador
+**Estado:** cerrada
 **Depende de:** spec-06
 
 ## Objetivo
@@ -57,4 +57,11 @@ Resueltas: React + Vite (spec 00); `make console-check` aparte, para que `make c
 
 ## Cambios durante la implementación
 
-<!-- Se llena al cerrar. -->
+- **Edición: RFC y CURP también responden 422** (no estaba en el contrato). Mismo principio que los dígitos: nada se enmascara en silencio. La detección corre sobre el texto normalizado (NFKC, sin invisibles, mayúsculas) con el detector de la 01b y con un patrón que admite separadores entre los segmentos fijos; lo guardado no se altera. Una primera versión pegaba los grupos quitando separadores, y el reviewer mostró que así un dígito vecino se pegaba al identificador y lo ocultaba (`Ref 1 GOCA…`), una regresión respecto del detector crudo.
+- **Regla de dígitos endurecida en ambos lados** (hallazgo del security-reviewer, hueco presente desde la 05a). Antes de buscar: NFKC, sin caracteres `Cf` y sin horas bien formadas (`HH:MM[:SS]`). Separador: cualquier carácter que no sea letra ni dígito, `:` incluido, o una palabra de 1 a 3 letras con o sin espacios. La primera versión dejaba `:` fuera para no rechazar horas, y el reviewer mostró que así pasaba `646180:198384:020099`; se cambió a eximir solo horas válidas. Riesgo residual aceptado: palabras de 4+ letras entre grupos y dígitos disfrazados de una secuencia de horas (la última defensa es la aprobación humana). Falsos positivos aceptados en la dirección segura: listas de 3+ montos con comas.
+- **`PRAGMA user_version`** (pedido en la revisión del plan): el `Store` falla con "esquema desactualizado: borra var/copilot.db" ante una base anterior. Sin migraciones.
+- **`reply_snapshot` opcional**: una propuesta sin caso (solo en tests de la 06) registra `None`.
+- **La vista del caso** expone además `edited_by`, `edited_at` y `proposal.execution`.
+- **Cobertura de `tool_result` en datos persistidos**: `test_persisted_traces_have_no_sensitive_data` usa `run_turn` y no las genera; se agregó `test_persisted_rows_after_loop_have_no_sensitive_data`, que pasa por `run_case` con los 15 casos de eval.
+- **Consola**: la traza se muestra por lista permitida; un paso desconocido aparece solo por nombre, sin su contenido, así que un bloque de thinking no se mostraría aunque llegara a persistirse. `make console-check` corre también Vitest. El criterio 6 no se recortó.
+- **Riesgo entre dos operadores** (editar mientras otro aprueba): documentado como residual en DESIGN.md; `expected_edited_at` queda en "qué haría con más tiempo", ligado a SSO.

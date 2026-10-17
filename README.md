@@ -11,6 +11,32 @@ docker compose up
 
 <!-- Completar: URLs de la consola, API y servidor MCP. -->
 
+## Consola de operaciones: verificación manual (spec 07)
+
+Recorrido completo webhook → worker → consola → aprobar, con el modelo real (requiere `ANTHROPIC_API_KEY` en `.env` y Node para la consola; cuesta unos centavos por caso).
+
+```bash
+rm -f var/copilot.db   # solo si el Store responde "esquema desactualizado"
+make api               # terminal 1: API + worker en :8001
+make console           # terminal 2: consola en http://localhost:5173
+```
+
+1. Crear un caso por el webhook:
+   ```bash
+   curl -s -X POST localhost:8001/webhooks/tickets \
+     -H 'Content-Type: application/json' -H 'Idempotency-Key: demo-1' \
+     -d '{"ticket_id":"T-100","customer_id":"cus_004","message":"Me cobraron dos veces en Liverpool"}'
+   ```
+   Responde `202` con el `case_id` en `queued`. Repetir el mismo comando devuelve el mismo caso.
+2. En unos segundos el worker lo procesa. En la **Bandeja**, *Refrescar*: el caso aparece en `proposal_pending` con su tipo.
+3. Abrir el caso. Verificar:
+   - el mensaje enmascarado, el tipo de caso y el razonamiento (sale de `reasoning_summary`, nunca de thinking);
+   - en la **Traza**, las tools llamadas con sus argumentos y resultados, los tokens, el costo y la latencia por paso;
+   - la acción propuesta (se espera `open_dispute` sobre el cargo duplicado) con su justificación. Si el modelo no propone acción, el caso queda en `answered` y el recorrido sigue sin el paso 5.
+4. Editar la respuesta final y *Guardar*. Probar también una CLABE en el texto: la API responde 422 y la consola muestra el mensaje.
+5. Escribir el operador y *Aprobar*. Aparecen la decisión y la ejecución; la respuesta ya no se puede editar (409).
+6. `curl -s localhost:8001/cases/<case_id>`: `proposal.decision.reply_snapshot` tiene el texto editado.
+
 ## Tests (sin API key)
 
 ```bash
