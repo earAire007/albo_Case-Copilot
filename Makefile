@@ -1,4 +1,4 @@
-.PHONY: check test lint check-docs dataset mock mcp smoke api
+.PHONY: check test lint check-docs dataset mock mcp smoke api console console-check
 
 # Run before every commit: Claude Code hooks don't run outside that tool.
 check:
@@ -34,3 +34,11 @@ smoke:
 # Copilot API + in-process worker (real model: needs credentials).
 api:
 	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) uvicorn backend.app.api:_production_app --factory --port 8001
+
+# Operations console (spec 07). Needs Node; outside `make check` so Python stays Node-free.
+console-check:
+	cd console && npm ci --no-audit --no-fund && npx tsc --noEmit && npx vitest run && npx vite build
+
+# Dev server on :5173, proxies /api to `make api` on :8001.
+console:
+	cd console && npm run dev

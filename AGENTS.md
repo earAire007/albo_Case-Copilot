@@ -26,6 +26,9 @@ make lint        # ruff check + format --check + pyright + import-linter
 make check-docs  # tests de la tabla de invariantes y filas de specs/README.md
 make dataset     # regenera data/*.json (determinista; no debe producir diff)
 make mock        # API mock del core en :8000
+make api         # API del copiloto + worker en :8001 (modelo real, requiere .env)
+make console     # consola de operaciones en :5173 (requiere Node)
+make console-check  # tsc + vitest + vite build de la consola; fuera de make check
 ```
 
 En Claude Code, los hooks corren ruff sobre cada `.py` editado y, al terminar el turno, `make lint` y `make test`. Si fallan, corrige antes de seguir.
