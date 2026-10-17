@@ -149,6 +149,8 @@ async def _run_tool(
             results = search_policies(query, int(call.input.get("k", 3)))
         except (KeyError, TypeError, ValueError):
             return True, untrusted_block("herramienta:search_policies", "argumentos inválidos")
+        # Spec 08: ids only (recall of policy_chunks); the texts stay out of the trace.
+        store.add_trace(ctx.case_id, "policy_result", {"ids": [str(r["id"]) for r in results]})
         new_texts = [str(r["text"]["untrusted_text"]) for r in results]
         for r in results:
             state.chunks[str(r["id"])] = str(r["text"]["untrusted_text"])

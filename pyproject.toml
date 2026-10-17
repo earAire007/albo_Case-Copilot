@@ -119,6 +119,12 @@ source_modules = ["backend.orchestrator"]
 forbidden_modules = ["backend.executor", "backend.security.unmask"]
 
 [[tool.importlinter.contracts]]
+name = "evals measure, never decide: no approval, executor or ledger"
+type = "forbidden"
+source_modules = ["evals"]
+forbidden_modules = ["backend.approval", "backend.executor", "backend.store.ledger"]
+
+[[tool.importlinter.contracts]]
 name = "the agent never imports eval labels"
 type = "forbidden"
 source_modules = ["backend", "mcp_server"]

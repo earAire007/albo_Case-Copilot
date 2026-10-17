@@ -1,0 +1,16 @@
+# Spec 08: `docker compose up` -> console and API on http://localhost:8001
+# Without ANTHROPIC_API_KEY the service starts; cases go to requires_human.
+services:
+  api:
+    build: .
+    ports:
+      # Localhost only: the API has no authentication (spec 00, residual risk).
+      - "127.0.0.1:8001:8001"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - copilot-data:/app/var
+
+volumes:
+  copilot-data:

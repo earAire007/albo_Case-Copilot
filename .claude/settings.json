@@ -3,7 +3,9 @@
     "deny": [
       "Read(./.env)",
       "Read(./.env.*)",
-      "Bash(git push --force:*)"
+      "Bash(git push --force:*)",
+      "Write(./evals/labels/human.json)",
+      "Edit(./evals/labels/human.json)"
     ],
     "allow": [
       "Bash(make test)",

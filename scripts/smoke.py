@@ -17,6 +17,7 @@ from backend.mock_core.repository import JsonCoreRepository
 from backend.orchestrator.loop import LoopConfig, run_case
 from backend.orchestrator.mcp_session import McpToolSession
 from backend.store.store import Store
+from evals.runner import opaque_id
 from evals.schema import load_cases
 from mcp_server.server import create_server
 
@@ -42,10 +43,11 @@ async def main(prefixes: list[str]) -> None:
     for case in load_cases():
         if case.id[:2] not in prefixes:
             continue
-        ctx = CaseContext(case.id, case.customer_id, case.as_of, case.message)
+        # Opaque id: the eval id names the attack and the prompt carries it (spec 08, H1).
+        ctx = CaseContext(opaque_id(case), case.customer_id, case.as_of, case.message)
         async with Client(create_server(repo, case.customer_id)) as client:
             result = await run_case(store, ctx, McpToolSession(client), model, config)
-        steps = [t for t in store.traces(case.id) if t["step"] == "model_step"]
+        steps = [t for t in store.traces(ctx.case_id) if t["step"] == "model_step"]
         tokens = sum(s["payload"]["input_tokens"] + s["payload"]["output_tokens"] for s in steps)
         cost = sum(s["payload"]["cost_usd"] for s in steps)
         print(

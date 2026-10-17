@@ -33,7 +33,14 @@ make console-check  # tsc + vitest + vite build de la consola; fuera de make che
 
 En Claude Code, los hooks corren ruff sobre cada `.py` editado y, al terminar el turno, `make lint` y `make test`. Si fallan, corrige antes de seguir.
 
-Pendientes: `make up` (docker compose, cuando haya más de un servicio) y `make evals` (spec 04, requiere `ANTHROPIC_API_KEY` en `.env`).
+```bash
+make up                    # docker compose up --build: consola y API en http://localhost:8001
+make evals MAX_USD=5       # runner de evals con el modelo real (cuesta dinero; MAX_USD obligatorio)
+make evals-label-template  # plantilla anónima para etiquetar a mano
+make evals-judge           # juez a ciegas contra las etiquetas humanas (cuesta dinero)
+```
+
+`evals/labels/human.json` lo llena una persona, en un commit propio. Ningún agente lo escribe: la regla `deny` lo bloquea en Claude Code, pero no cubre redirecciones de shell.
 
 ## Reglas no negociables
 

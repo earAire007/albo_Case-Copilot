@@ -1,0 +1,16 @@
+# Never into the image: secrets, the local database and the confidential challenge text.
+.env
+.env.*
+**/.env
+**/.env.*
+var/
+.local/
+# Rebuilt inside the image or not needed there.
+.git/
+.venv/
+**/__pycache__/
+**/node_modules/
+console/dist/
+evals/runs/
+.pytest_cache/
+.claude/

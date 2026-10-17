@@ -16,10 +16,12 @@ import os
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Annotated, Any
 
 import anyio
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend.approval.service import (
@@ -35,6 +37,7 @@ from backend.mock_core.repository import CoreRepository, JsonCoreRepository
 from backend.store.store import IdempotencyConflictError, Store
 
 MEXICO_CITY = timezone(timedelta(hours=-6))
+CONSOLE_DIST = Path(__file__).resolve().parents[2] / "console" / "dist"
 _HIDDEN_TRACE_STEPS = frozenset({"prompt"})  # full prompts stay in the DB, not in the console
 
 
@@ -224,4 +227,18 @@ def _production_app() -> FastAPI:
             if processed is None:
                 await anyio.sleep(1.0)
 
-    return create_app(store, repo, worker=worker_loop)
+    # Spec 08: the API under /api and the console build at / (one service). A mounted
+    # sub-app does not run its lifespan, so the worker belongs to the outer app.
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(worker_loop)
+            yield
+            tg.cancel_scope.cancel()
+
+    app = FastAPI(title="Copiloto de casos", lifespan=lifespan)
+    app.mount("/api", create_app(store, repo))
+    console = Path(os.environ.get("CONSOLE_DIST", str(CONSOLE_DIST)))
+    if console.is_dir():
+        app.mount("/", StaticFiles(directory=console, html=True), name="console")
+    return app

@@ -1,4 +1,4 @@
-.PHONY: check test lint check-docs dataset mock mcp smoke api console console-check
+.PHONY: check test lint check-docs dataset mock mcp smoke api console console-check evals evals-label-template evals-judge up
 
 # Run before every commit: Claude Code hooks don't run outside that tool.
 check:
@@ -42,3 +42,19 @@ console-check:
 # Dev server on :5173, proxies /api to `make api` on :8001.
 console:
 	cd console && npm run dev
+
+# Spec 08. Real model, costs money: outside `make check`. MAX_USD is mandatory.
+evals:
+	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python -m evals.runner --variant $(or $(VARIANT),opus-5.5,sonnet-5.5) $(if $(MAX_USD),--max-usd $(MAX_USD),)
+
+# ~10 anonymous answers from the latest run for a person to label (never overwrites labels).
+evals-label-template:
+	PYTHONPATH=. uv run python -m evals.runner --label-template
+
+# Blind judge over the labeled answers; agreement per variant into EVALS.md. Costs money:
+# MAX_USD is mandatory here too.
+evals-judge:
+	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python -m evals.runner --judge $(if $(MAX_USD),--max-usd $(MAX_USD),)
+
+up:
+	docker compose up --build
