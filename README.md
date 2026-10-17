@@ -2,10 +2,12 @@
 
 Agente que investiga casos de clientes (SPEI, tarjeta) con herramientas internas y políticas, propone una resolución y deja que una persona de operaciones la apruebe. **El agente nunca mueve dinero.**
 
-## Levantar todo
+## Con Docker (recomendado)
+
+Solo requiere Docker.
 
 ```bash
-cp .env.example .env   # agrega tu ANTHROPIC_API_KEY (solo necesaria para evals y uso real)
+cp .env.example .env   # agrega tu ANTHROPIC_API_KEY; sin ella el servicio arranca igual
 docker compose up --build
 ```
 
@@ -13,18 +15,13 @@ docker compose up --build
 - API: http://localhost:8001/api (OpenAPI en http://localhost:8001/api/docs)
 - Webhook: `POST http://localhost:8001/api/webhooks/tickets`
 - El servidor MCP no se expone: el worker lo levanta en proceso, fijado al cliente de cada caso.
+- La base vive en el volumen `copilot-data`.
 
-Sin `ANTHROPIC_API_KEY` el servicio arranca igual; los casos van a `requires_human`. La base vive en el volumen `copilot-data`.
+Sin `ANTHROPIC_API_KEY`, el log de arranque avisa que los casos se derivarán a revisión humana.
 
-## Consola de operaciones: verificación manual (spec 07)
+### Recorrido: webhook → worker → consola → aprobar
 
-Recorrido completo webhook → worker → consola → aprobar, con el modelo real (requiere `ANTHROPIC_API_KEY` en `.env` y Node para la consola; cuesta unos centavos por caso).
-
-```bash
-rm -f var/copilot.db   # solo si el Store responde "esquema desactualizado"
-make api               # terminal 1: API + worker en :8001/api
-make console           # terminal 2: consola en http://localhost:5173 (o `make up`: todo en :8001)
-```
+Con key, usa el modelo real y cuesta unos centavos por caso.
 
 1. Crear un caso por el webhook:
    ```bash
@@ -33,7 +30,9 @@ make console           # terminal 2: consola en http://localhost:5173 (o `make u
      -d '{"ticket_id":"T-100","customer_id":"cus_004","message":"Me cobraron dos veces en Liverpool"}'
    ```
    Responde `202` con el `case_id` en `queued`. Repetir el mismo comando devuelve el mismo caso.
-2. En unos segundos el worker lo procesa. En la **Bandeja**, *Refrescar*: el caso aparece en `proposal_pending` con su tipo.
+2. En unos segundos el worker lo procesa. En la consola (http://localhost:8001), **Bandeja** → *Refrescar*:
+   - **con key**, el caso aparece en `proposal_pending` con su tipo;
+   - **sin key**, termina en `requires_human`. Al abrirlo, el **Motivo** dice que el servicio del modelo no está configurado y la traza muestra la parada `config_error`, sin pasos del modelo. El recorrido termina aquí.
 3. Abrir el caso. Verificar:
    - el mensaje enmascarado, el tipo de caso y el razonamiento (sale de `reasoning_summary`, nunca de thinking);
    - en la **Traza**, las tools llamadas con sus argumentos y resultados, los tokens, el costo y la latencia por paso;
@@ -41,6 +40,27 @@ make console           # terminal 2: consola en http://localhost:5173 (o `make u
 4. Editar la respuesta final y *Guardar*. Probar también una CLABE en el texto: la API responde 422 y la consola muestra el mensaje.
 5. Escribir el operador y *Aprobar*. Aparecen la decisión y la ejecución; la respuesta ya no se puede editar (409).
 6. `curl -s localhost:8001/api/cases/<case_id>`: `proposal.decision.reply_snapshot` tiene el texto editado.
+
+Para repetir el recorrido, usa otra `Idempotency-Key` (`demo-2`, …) o empieza con la base vacía:
+
+```bash
+docker compose down -v   # borra el volumen copilot-data
+docker compose up --build
+```
+
+Todo caso en `requires_human` o `execution_failed` muestra su **Motivo** junto al estado.
+
+## Desarrollo local
+
+Requiere [uv](https://docs.astral.sh/uv/) y Node 22. La key se lee de `.env` si existe; sin ella vale lo mismo que en Docker.
+
+```bash
+uv sync
+make api       # terminal 1: API + worker en http://localhost:8001/api
+make console   # terminal 2: consola con recarga en http://localhost:5173
+```
+
+El recorrido es el mismo de arriba, con la consola en http://localhost:5173 (el curl sigue yendo a `:8001`). La base vive en `var/copilot.db`. Para empezar vacío, o si el Store responde "esquema desactualizado", detén `make api` y corre `rm -f var/copilot.db`.
 
 ## Tests (sin API key)
 
