@@ -72,7 +72,8 @@ function Row({ row }: { row: TraceRow }) {
     case "provider_error":
       return (
         <div className="warn">
-          Error del proveedor: {String(p.kind)} (intento {String(p.attempt)})
+          {/* attempt is 0-based in the trace; operators count from 1 */}
+          Error del proveedor: {String(p.kind)} (intento {Number(p.attempt) + 1})
         </div>
       );
     case "validation":

@@ -123,6 +123,21 @@ test("a case for a human shows its reason next to the status", async () => {
   expect((await screen.findByTestId("status-reason")).textContent).toBe(`Motivo: ${reason}`);
 });
 
+test("provider error attempts are shown 1-based", async () => {
+  const rows: TraceRow[] = [
+    { step: "provider_error", validator: null, created_at: "x", payload: { kind: "server", attempt: 0 } },
+  ];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith("/trace") ? rows : CASE))),
+  );
+  render(<Detail caseId="case_1" onBack={() => {}} />);
+  expect(await screen.findByText(/Error del proveedor/)).toHaveProperty(
+    "textContent",
+    "Error del proveedor: server (intento 1)",
+  );
+});
+
 test("a pending case shows no reason", async () => {
   serve(CASE);
   render(<Detail caseId="case_1" onBack={() => {}} />);

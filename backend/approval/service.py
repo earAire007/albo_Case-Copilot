@@ -26,7 +26,7 @@ class ConflictError(Exception):
 
 def _check_approver(approver: str) -> str:
     if not approver.strip():
-        raise ValueError("approver vacío")
+        raise ValueError("Escribe tu nombre en Operador antes de aprobar o rechazar.")
     return approver.strip()
 
 
@@ -121,7 +121,7 @@ def edit_reply(store: Store, case_id: str, editor: str, final_reply: str) -> dic
 
 def _check_editor(editor: str) -> str:
     if not editor.strip():
-        raise ValueError("editor vacío")
+        raise ValueError("Escribe tu nombre en Operador antes de guardar.")
     return editor.strip()
 
 
@@ -132,9 +132,10 @@ def _check_reply(store: Store, case_id: str, text: str) -> None:
         t["payload"].get("payload") for t in store.traces(case_id) if t["step"] == "tool_result"
     )
     if has_digit_run(text, tracking_keys(results)):
+        # A tracking key returned by this case's tools is exempt (see the module docstring).
         raise ValueError(
-            "la respuesta contiene un tramo de 13 o más dígitos que no es una clave de rastreo"
-            " devuelta por las herramientas de este caso; quítalo o usa la terminación"
+            "La respuesta parece contener un número de cuenta o tarjeta completo. "
+            "Quítalo o usa solo los últimos 4 dígitos."
         )
     upper = normalize(text).upper()
     if find_sensitive(upper) or _SPLIT_IDENTIFIER.search(upper):
