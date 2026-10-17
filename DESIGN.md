@@ -4,7 +4,14 @@
 
 ## Arquitectura del harness
 
-<!-- spec 05a (componentes deterministas) y 05b (loop con el modelo) -->
+Cuatro módulos con una frontera cada uno, vigilada por import-linter (spec 05a):
+
+- **`backend/agent/`, puro:** arma el prompt (`as_of` como "ahora", mensaje del cliente enmascarado, todo contenido no confiable dentro de delimitadores que no puede cerrar), define la salida estructurada `AgentOutput` y la valida con funciones puras (`schema`, `action`, `citations`, `digits`, `facts`, `no_support`). No persiste ni ejecuta: no puede importar `store`, `executor`, `unmask`, `evals` ni la API mock.
+- **`backend/store/`, neutral:** SQLite para el estado de la aplicación (propuestas, decisiones, ejecuciones y trazas). Todo texto libre se enmascara al insertarse.
+- **`backend/orchestrator/`:** `run_turn` arma el prompt, llama al modelo, valida y deja una propuesta **pendiente** o manda el caso a humano, trazando cada paso y cada rechazo con su validador. No puede importar el executor ni `unmask`.
+- **`backend/executor/`:** ejecuta solo propuestas con aprobación registrada, una vez, y solo acciones del enum; las acciones son stubs que no mueven dinero. Es el único módulo autorizado a importar `unmask`. Lo invoca el flujo de aprobación (specs 06 y 07), nunca el orquestador.
+
+El loop con el modelo real y el tool calling contra la sesión MCP del caso son de la spec 05b, y reemplazan al llamador de `run_turn`.
 
 ## Modelo de defensa
 
@@ -13,11 +20,11 @@ Invariantes definidas en `specs/00-fundamentos.md`. Cada una con los tests y con
 | # | Invariante | Tests y contratos |
 |---|------------|-------------------|
 | 1 | Sin capacidad de mover dinero | `test_mcp_exposes_no_money_moving_tool`; `test_mock_api_has_no_write_routes` |
-| 2 | Planner/executor separados, gate humano en código | `test_executor_requires_recorded_approval` (pendiente, spec 05a); `test_validator_rejects_action_outside_enum` (pendiente, spec 05a); contrato `agente no importa executor` (pendiente, spec 05a) |
+| 2 | Planner/executor separados, gate humano en código | `test_executor_requires_recorded_approval`, `test_validator_rejects_action_outside_enum`, `test_validator_rejects_txn_of_other_customer_present_in_results`; contrato `agent is pure: no store, executor, unmask, evals or API`; contrato `orchestrator never executes or unmasks` |
 | 3 | Scoping de `customer_id` por capacidad | `test_mcp_tools_ignore_model_supplied_customer_id`, `test_other_account_scenario_is_unreachable`; `test_endpoints_never_return_other_customer_data` |
-| 4 | Enmascarado de datos sensibles en la frontera | `test_fixture_fails_on_raw_identifier`, `test_sensor_fails_on_print`, `test_sensor_fails_on_stderr`, `test_sensor_attributes_exception_message_leak` (parcial: logs, stdout, stderr y excepciones de tests); `test_mask_applied_before_model_and_traces`, `test_mask_reuses_detector_and_keeps_tracking_key`, `test_free_text_and_error_masking_through_mcp`, `test_non_mcp_errors_are_masked_over_stdio`; `test_persisted_traces_have_no_sensitive_data` (pendiente, spec 05a); `test_customer_message_is_masked_before_model` (pendiente, spec 05a); contrato `unmask is protected` (hoy sin importadores permitidos; pendiente, spec 05a: permitir solo al executor) |
-| 5 | Contenido no confiable (clientes, políticas, resultados de tools) delimitado | `test_validator_rejects_injected_action[customer_message\|policy_chunk\|tool_result]` (pendiente, spec 05a); `test_untrusted_content_is_delimited` (parcial: chunks de política y campos de terceros del MCP); `test_untrusted_content_is_delimited_in_prompt` (pendiente, spec 05a) |
-| 6 | Groundedness verificada en código | `test_unsupported_citation_or_amount_is_flagged` (pendiente, spec 05a); `test_output_schema_has_no_support_flag` (pendiente, spec 05a); `test_harness_injects_case_as_of_as_now` (pendiente, spec 05a); `test_citations_belong_to_retrieved_chunks` (pendiente, spec 05a: pertenencia, no relevancia, que cubren `no_support` y el juez de groundedness) |
+| 4 | Enmascarado de datos sensibles en la frontera | `test_fixture_fails_on_raw_identifier`, `test_sensor_fails_on_print`, `test_sensor_fails_on_stderr`, `test_sensor_attributes_exception_message_leak` (parcial: logs, stdout, stderr y excepciones de tests); `test_mask_applied_before_model_and_traces`, `test_mask_reuses_detector_and_keeps_tracking_key`, `test_free_text_and_error_masking_through_mcp`, `test_non_mcp_errors_are_masked_over_stdio`; `test_persisted_traces_have_no_sensitive_data`, `test_store_masks_every_table`, `test_customer_message_is_masked_before_model`; contrato `unmask is protected` (solo `backend.executor`) |
+| 5 | Contenido no confiable (clientes, políticas, resultados de tools) delimitado | `test_validator_rejects_injected_action[customer_message\|policy_chunk\|tool_result]`, `test_delimiter_variants_cannot_close_block`; `test_untrusted_content_is_delimited` (parcial: chunks de política y campos de terceros del MCP); `test_untrusted_content_is_delimited_in_prompt` |
+| 6 | Groundedness verificada en código | `test_unsupported_citation_or_amount_is_flagged`, `test_output_schema_has_no_support_flag`, `test_harness_injects_case_as_of_as_now`, `test_citations_belong_to_retrieved_chunks` (verifica pertenencia, no relevancia: la relevancia la cubren `no_support` y el juez de groundedness de los evals) |
 
 ### Riesgo residual y cómo se detecta en producción
 

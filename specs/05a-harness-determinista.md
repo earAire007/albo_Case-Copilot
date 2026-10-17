@@ -1,6 +1,6 @@
 # Spec 05a — Harness determinista
 
-**Estado:** borrador
+**Estado:** cerrada
 **Depende de:** spec-02, spec-03, spec-04
 
 ## Objetivo
@@ -81,6 +81,12 @@ Riesgo: el alcance es justo para el tiempo. Si falta, se recorta primero la part
 
 ## Cambios durante la implementación
 
+- Arquitectura en cuatro módulos (agent puro, store neutral, orchestrator, executor), con contratos que impiden que el agente persista o ejecute y que el orquestador ejecute o desenmascare.
+- `run_turn` recibe los resultados de tools y los chunks del llamador; los tests los obtienen de la sesión MCP real en memoria y de `search_policies`. Los montos se comparan contra `amount / 100`.
+- El executor no importa `unmask`: ninguna acción lo necesita. El contrato se lo permite y un test lo verifica.
+- `TRACKING_KEY_RE` se expuso desde `backend/domain/sensitive.py`. El validador exime solo las claves de rastreo que devolvieron las tools del caso, no el formato.
+- security-reviewer: bloqueó una vez. El validador de dígitos se evadía con `CC` + CLABE y con separadores, el escape de delimitadores solo cubría la forma exacta, la rama del dueño del movimiento no tenía test y la justificación se guardaba sin enmascarar. Tras los arreglos dio OK, con 18 mutaciones detectadas.
+- Correcciones a tests propios en la fase de rojo: el vector `tool_result` leía una tool que no incluye `concept`, y una aserción del escape prohibía la forma escapada correcta.
 - Residuales del validador de dígitos y del escape (security-reviewer; no bloquean, porque fallan del lado seguro o el modelo no tiene datos reales):
   - Pasan: comas o dos puntos como separador, paréntesis, letras pegadas a los dígitos y separadores de varios caracteres. Agregar separadores uno por uno es una carrera sin fin; la alternativa robusta es contar dígitos en una ventana (unos 40 caracteres), después de quitar fechas y montos reconocidos.
   - Falsos positivos: dos fechas unidas por una palabra corta ("del 01/10/2026 al 15/10/2026"), o un folio junto a una fecha. El caso va a humano: baja la tasa de casos resueltos sin intervención, pero no deja pasar nada. Corrección: quitar fechas antes de buscar, con tests de "no rechaza".
