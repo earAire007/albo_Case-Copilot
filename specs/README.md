@@ -14,7 +14,8 @@ Una spec por etapa, máximo una página. Ciclo: spec → commit → implementaci
 | 05b | [Loop con el modelo real](05b-loop-modelo-real.md) | cerrada | 50 min (real: ~42 min, 22:33–23:15 según commits; incluye 3 pasadas del security-reviewer y 2 corridas de humo) |
 | 06 | [Webhook y procesamiento asíncrono](06-webhook-async.md) | cerrada | 70 min (real: ~33 min, 23:18–23:51 según commits; incluye 2 pasadas del security-reviewer) |
 | 07 | [Consola de operaciones](07-consola.md) | cerrada | 60 min (real: ~65 min, 08:03–09:08 según commits; incluye 4 pasadas del security-reviewer) |
-| — | Cierre: runner + comparación de variantes, DESIGN, EVALS, PLAYBOOK, AI_NOTES | pendiente | 1 h |
+| 08 | [Runner de evals, juez, variantes y docker compose](08-runner-evals.md) | borrador | 1 h 30 min |
+| — | Cierre: DESIGN, EVALS (lectura), PLAYBOOK, AI_NOTES | pendiente | 30 min |
 
 ## Por qué este orden
 
