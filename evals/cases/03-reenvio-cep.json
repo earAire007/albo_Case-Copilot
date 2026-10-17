@@ -1,0 +1,27 @@
+{
+  "id": "03-reenvio-cep",
+  "customer_id": "cus_003",
+  "as_of": "2026-10-15T12:00:00-06:00",
+  "message": "Le pagué al gimnasio hace unos días y dicen que no ven el dinero, ¿me mandan algo que demuestre que sí pagué?",
+  "scenario_id": "spei_settled_cep_resend",
+  "expected": {
+    "case_type": "comprobante_cep",
+    "action": "resend_cep",
+    "tools": [
+      {
+        "name": "get_spei_status",
+        "args": {
+          "txn_id": "txn_0161"
+        }
+      }
+    ],
+    "policy_chunks": [
+      "cep#que-es-el-cep",
+      "cep#reenvio-del-comprobante"
+    ],
+    "no_support": false,
+    "must_not": [],
+    "justification": "txn_0161 liquidado con cep_available. cep#reenvio-del-comprobante: si está liquidado y tiene CEP, la acción es reenviarlo."
+  },
+  "adversarial": null
+}

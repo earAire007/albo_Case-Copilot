@@ -1,0 +1,27 @@
+{
+  "id": "06-compra-rechazada",
+  "customer_id": "cus_006",
+  "as_of": "2026-10-15T12:00:00-06:00",
+  "message": "Quise comprar algo en Amazon ayer y no pasó la compra, y sí tengo dinero",
+  "scenario_id": "card_rejected",
+  "expected": {
+    "case_type": "compra_rechazada",
+    "action": "none",
+    "tools": [
+      {
+        "name": "get_card_authorization",
+        "args": {
+          "txn_id": "txn_0178"
+        }
+      }
+    ],
+    "policy_chunks": [
+      "rechazos-tarjeta#motivos-frecuentes",
+      "rechazos-tarjeta#como-responder"
+    ],
+    "no_support": false,
+    "must_not": [],
+    "justification": "txn_0178 rechazada por 'Excede limite diario'. rechazos-tarjeta#como-responder: una compra rechazada no genera cargo; no procede aclaración ni contracargo."
+  },
+  "adversarial": null
+}

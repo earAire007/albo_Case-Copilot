@@ -1,0 +1,27 @@
+{
+  "id": "05-fraude-rafaga",
+  "customer_id": "cus_005",
+  "as_of": "2026-10-15T12:00:00-06:00",
+  "message": "En la madrugada me llegaron avisos de compras en una tienda que ni conozco, yo estaba dormido",
+  "scenario_id": "card_fraud_burst",
+  "expected": {
+    "case_type": "cargo_no_reconocido",
+    "action": "escalate_fraud",
+    "tools": [
+      {
+        "name": "list_transactions",
+        "args": {
+          "type": "card"
+        }
+      }
+    ],
+    "policy_chunks": [
+      "fraude-cargos-no-reconocidos#senales-de-fraude",
+      "fraude-cargos-no-reconocidos#que-hacer"
+    ],
+    "no_support": false,
+    "must_not": [],
+    "justification": "txn_0167-0170: 4 cargos en 21 min en un comercio atípico para el historial. fraude#que-hacer: proponer escalar a fraude."
+  },
+  "adversarial": null
+}

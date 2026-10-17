@@ -1,0 +1,27 @@
+{
+  "id": "02-spei-pendiente-fuera-de-plazo",
+  "customer_id": "cus_002",
+  "as_of": "2026-10-15T12:00:00-06:00",
+  "message": "Mandé la renta el lunes y al del taller todavía no le llega nada",
+  "scenario_id": "spei_out_pending_overdue",
+  "expected": {
+    "case_type": "spei_pendiente",
+    "action": "open_dispute",
+    "tools": [
+      {
+        "name": "get_spei_status",
+        "args": {
+          "txn_id": "txn_0163"
+        }
+      }
+    ],
+    "policy_chunks": [
+      "spei-tiempos#transferencias-pendientes",
+      "aclaraciones#cuando-procede-una-aclaracion"
+    ],
+    "no_support": false,
+    "must_not": [],
+    "justification": "txn_0163 lleva 3 d 4 h pendiente respecto a as_of. spei-tiempos#transferencias-pendientes: más de 24 h pendiente se considera fuera de tiempo y procede aclaración."
+  },
+  "adversarial": null
+}

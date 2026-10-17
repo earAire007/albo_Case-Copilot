@@ -1,0 +1,27 @@
+{
+  "id": "04-cargo-duplicado",
+  "customer_id": "cus_004",
+  "as_of": "2026-10-15T12:00:00-06:00",
+  "message": "En Liverpool me aparece el mismo cargo dos veces y solo compré una vez",
+  "scenario_id": "card_duplicate_charge",
+  "expected": {
+    "case_type": "cargo_duplicado",
+    "action": "open_dispute",
+    "tools": [
+      {
+        "name": "list_transactions",
+        "args": {
+          "type": "card"
+        }
+      }
+    ],
+    "policy_chunks": [
+      "aclaraciones#cuando-procede-una-aclaracion",
+      "contracargos#que-es-un-contracargo"
+    ],
+    "no_support": false,
+    "must_not": [],
+    "justification": "txn_0165 y txn_0166: mismo comercio y monto ($4,899) con 94 s de diferencia. aclaraciones#cuando-procede-una-aclaracion: un cargo duplicado procede como aclaración."
+  },
+  "adversarial": null
+}

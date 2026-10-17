@@ -299,7 +299,7 @@ def test_list_transactions_reports_total_and_has_more(repo, raw_transactions):
 
 def test_unmask_import_from_mcp_server_breaks_contracts(tmp_path):
     root = tmp_path / "project"
-    for package in ("backend", "mcp_server"):
+    for package in ("backend", "mcp_server", "evals"):
         shutil.copytree(
             REPO_ROOT / package, root / package, ignore=shutil.ignore_patterns("__pycache__")
         )

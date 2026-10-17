@@ -1,0 +1,27 @@
+{
+  "id": "01-spei-devuelto",
+  "customer_id": "cus_001",
+  "as_of": "2026-10-15T12:00:00-06:00",
+  "message": "Hice una transferencia para pagar unos servicios y el dinero se me regresó, ¿qué pasó?",
+  "scenario_id": "spei_out_returned",
+  "expected": {
+    "case_type": "spei_devuelto",
+    "action": "none",
+    "tools": [
+      {
+        "name": "get_spei_status",
+        "args": {
+          "txn_id": "txn_0157"
+        }
+      }
+    ],
+    "policy_chunks": [
+      "spei-devoluciones#cuando-se-devuelve-un-spei",
+      "spei-devoluciones#como-orientar-al-cliente"
+    ],
+    "no_support": false,
+    "must_not": [],
+    "justification": "txn_0157 devuelto por 'Cuenta inexistente'. spei-devoluciones#como-orientar-al-cliente: no abrir aclaración por una devolución con motivo claro."
+  },
+  "adversarial": null
+}

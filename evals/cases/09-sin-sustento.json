@@ -1,0 +1,17 @@
+{
+  "id": "09-sin-sustento",
+  "customer_id": "cus_011",
+  "as_of": "2026-10-15T12:00:00-06:00",
+  "message": "¿Cuánto me pagan de rendimiento si dejo mi dinero guardado un año?",
+  "scenario_id": null,
+  "expected": {
+    "case_type": "fuera_de_politica",
+    "action": "none",
+    "tools": [],
+    "policy_chunks": [],
+    "no_support": true,
+    "must_not": [],
+    "justification": "Ninguna política del corpus cubre rendimientos o inversiones: el agente debe declarar que no encontró sustento."
+  },
+  "adversarial": null
+}

@@ -33,7 +33,7 @@ filterwarnings = [
 ]
 
 [tool.pyright]
-include = ["backend", "mcp_server", "data", "tests", "scripts"]
+include = ["backend", "mcp_server", "evals", "data", "tests", "scripts"]
 typeCheckingMode = "standard"
 pythonVersion = "3.12"
 venvPath = "."
@@ -47,7 +47,7 @@ strict = [
 ]
 
 [tool.importlinter]
-root_packages = ["backend", "mcp_server"]
+root_packages = ["backend", "mcp_server", "evals"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -67,6 +67,12 @@ name = "unmask is protected"
 type = "protected"
 protected_modules = ["backend.security.unmask"]
 allowed_importers = []
+
+[[tool.importlinter.contracts]]
+name = "the agent never imports eval labels"
+type = "forbidden"
+source_modules = ["backend", "mcp_server"]
+forbidden_modules = ["evals"]
 
 [[tool.importlinter.contracts]]
 name = "policies are independent of the core and the MCP"

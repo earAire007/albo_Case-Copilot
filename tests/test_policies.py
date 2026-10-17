@@ -136,7 +136,7 @@ def test_results_are_sorted_and_capped():
 
 def test_policies_import_contract(tmp_path):
     root = tmp_path / "project"
-    for package in ("backend", "mcp_server"):
+    for package in ("backend", "mcp_server", "evals"):
         shutil.copytree(
             REPO_ROOT / package, root / package, ignore=shutil.ignore_patterns("__pycache__")
         )
