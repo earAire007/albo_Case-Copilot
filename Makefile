@@ -1,4 +1,4 @@
-.PHONY: check test lint check-docs dataset mock
+.PHONY: check test lint check-docs dataset mock mcp
 
 # Run before every commit: Claude Code hooks don't run outside that tool.
 check:
@@ -23,3 +23,6 @@ dataset:
 
 mock:
 	uv run uvicorn backend.mock_core.api:app --reload --port 8000
+
+mcp:
+	uv run python -m mcp_server --customer-id $(CUSTOMER)

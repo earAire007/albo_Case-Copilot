@@ -28,6 +28,7 @@ class TransactionPage(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     items: tuple[Transaction, ...]
+    total: int  # movements matching the filters, across all pages
     next_cursor: str | None
 
 
@@ -134,6 +135,7 @@ class JsonCoreRepository:
         end = offset + limit
         return TransactionPage(
             items=tuple(matching[offset:end]),
+            total=len(matching),
             next_cursor=_encode_cursor(end) if end < len(matching) else None,
         )
 

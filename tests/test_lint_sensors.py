@@ -49,9 +49,11 @@ def _lint_imports(root: Path) -> subprocess.CompletedProcess[str]:
 
 def _copy_project(tmp_path: Path) -> Path:
     root = tmp_path / "project"
-    shutil.copytree(
-        REPO_ROOT / "backend", root / "backend", ignore=shutil.ignore_patterns("__pycache__")
-    )
+    # Every import-linter root package must exist in the copy (spec 02 added mcp_server).
+    for package in ("backend", "mcp_server"):
+        shutil.copytree(
+            REPO_ROOT / package, root / package, ignore=shutil.ignore_patterns("__pycache__")
+        )
     shutil.copy(REPO_ROOT / "pyproject.toml", root / "pyproject.toml")
     return root
 

@@ -1,0 +1,61 @@
+"""mask(): the single masking step every MCP response goes through (spec 02, invariant 4).
+
+- CLABE and card -> `****` + last 4 digits (the customer can recognize "terminación 5678").
+- RFC, CURP and long_number -> fully replaced by a type tag (`[RFC]`, `[CURP]`,
+  `[LONG_NUMBER]`): their last characters don't identify anything to the customer.
+- Known sensitive fields are masked by name; every other string goes through
+  `find_sensitive` (spec 01b) with the same rules. `tracking_key` is never masked: it is
+  needed to query SPEI status and resend the CEP.
+
+Pure function: returns a new structure, never mutates the input.
+"""
+
+from typing import overload
+
+from backend.domain.sensitive import Kind, find_sensitive
+
+type Json = dict[str, Json] | list[Json] | str | int | float | bool | None
+
+SENSITIVE_FIELDS: dict[str, Kind] = {
+    "clabe": "clabe",
+    "counterparty_clabe": "clabe",
+    "card_number": "card",
+    "rfc": "rfc",
+    "curp": "curp",
+}
+EXEMPT_FIELDS = frozenset({"tracking_key"})
+_LAST4_KINDS: frozenset[Kind] = frozenset({"clabe", "card"})
+
+
+def _render(kind: Kind, original: str) -> str:
+    if kind in _LAST4_KINDS:
+        digits = "".join(ch for ch in original if ch.isdigit())
+        return "****" + digits[-4:]
+    return f"[{kind.upper()}]"
+
+
+def mask_text(text: str) -> str:
+    out = text
+    for finding in sorted(find_sensitive(text), key=lambda f: f.start, reverse=True):
+        out = (
+            out[: finding.start]
+            + _render(finding.kind, text[finding.start : finding.end])
+            + out[finding.end :]
+        )
+    return out
+
+
+@overload
+def mask(value: dict[str, Json], field: str | None = None) -> dict[str, Json]: ...
+@overload
+def mask(value: Json, field: str | None = None) -> Json: ...
+def mask(value: Json, field: str | None = None) -> Json:
+    if isinstance(value, dict):
+        return {key: mask(item, key) for key, item in value.items()}
+    if isinstance(value, list):
+        return [mask(item, field) for item in value]
+    if not isinstance(value, str) or field in EXEMPT_FIELDS:
+        return value
+    if field is not None and field in SENSITIVE_FIELDS:
+        return _render(SENSITIVE_FIELDS[field], value)
+    return mask_text(value)
