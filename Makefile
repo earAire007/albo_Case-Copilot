@@ -62,7 +62,7 @@ evals-judge:
 	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python -m evals.runner --judge $(if $(MAX_USD),--max-usd $(MAX_USD),)
 
 evals-judge-round2:
-	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python -m evals.runner --judge --round 2 $(if $(MAX_USD),--max-usd $(MAX_USD),)
+	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python -m evals.runner --judge --round 2 --no-report $(if $(MAX_USD),--max-usd $(MAX_USD),)
 
 evals-render:
 	@test -n "$(RUN_ID)" || (echo "RUN_ID es obligatorio: indica el id de la corrida guardada." >&2; exit 2)

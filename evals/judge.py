@@ -72,7 +72,7 @@ def blind(items: Sequence[JudgeItem], seed: int) -> tuple[list[dict[str, Any]], 
 
 
 def agreement(
-    verdicts: Mapping[str, Mapping[str, bool]],
+    verdicts: Mapping[str, Mapping[str, bool | str]],
     labels: Mapping[str, Mapping[str, bool | None]],
     mapping: Mapping[str, Any],
 ) -> dict[str, dict[str, tuple[int, int]]] | None:
@@ -84,7 +84,7 @@ def agreement(
         for criterion in CRITERIA:
             human = labels.get(anon, {}).get(criterion)
             judged = verdicts.get(anon, {}).get(criterion)
-            if human is None or judged is None:
+            if human is None or not isinstance(judged, bool):
                 continue
             labeled_any = True
             agree, n = per[criterion]
@@ -122,25 +122,44 @@ def judge_prompt(item: Mapping[str, Any]) -> str:
 
 VERDICT_SCHEMA: dict[str, Any] = {
     "type": "object",
-    "properties": {c: {"type": "boolean"} for c in CRITERIA},
-    "required": list(CRITERIA),
+    "properties": {
+        "groundedness_reason": {"type": "string"},
+        "groundedness": {"type": "boolean"},
+        "quality_reason": {"type": "string"},
+        "quality": {"type": "boolean"},
+    },
+    "required": [
+        "groundedness_reason",
+        "groundedness",
+        "quality_reason",
+        "quality",
+    ],
     "additionalProperties": False,
 }
+
+JUDGE_SYSTEM = (
+    f"{RUBRIC}\n\n"
+    "Para cada criterio, escribe primero su campo *_reason y después su veredicto booleano. "
+    "La razón de groundedness debe citar literalmente la afirmación evaluada y el dato concreto "
+    "de la evidencia que la sostiene, falta o contradice; no inventes evidencia. La razón de "
+    "quality debe citar fragmentos concretos del mensaje o de la respuesta que expliquen si "
+    "la respuesta atiende la consulta, es clara y evita promesas pendientes."
+)
 
 
 async def judge_all(
     blinded: Sequence[Mapping[str, Any]], *, model: str = "claude-opus-5-5"
-) -> dict[str, dict[str, bool]]:
+) -> dict[str, dict[str, bool | str]]:
     """One structured call per anonymous item. Costs money: only from `make evals-judge`."""
     import anthropic
 
     client = anthropic.AsyncAnthropic(max_retries=2)
-    verdicts: dict[str, dict[str, bool]] = {}
+    verdicts: dict[str, dict[str, bool | str]] = {}
     for item in blinded:
         response = await client.messages.create(
             model=model,
             max_tokens=4000,
-            system=RUBRIC,
+            system=JUDGE_SYSTEM,
             messages=[{"role": "user", "content": judge_prompt(item)}],
             output_config={"format": {"type": "json_schema", "schema": VERDICT_SCHEMA}},
         )

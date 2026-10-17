@@ -728,14 +728,25 @@ def test_round_two_judge_uses_round_two_file_and_mapping(tmp_path, monkeypatch):
 
     async def fake_judge(blinded):
         assert blinded == [{"id": "anon-r2", "message": "", "evidence": "", "reply": ""}]
-        return {"anon-r2": {"groundedness": True, "quality": True}}
+        return {
+            "anon-r2": {
+                "groundedness_reason": "El estado pendiente aparece en evidencia.",
+                "groundedness": True,
+                "quality_reason": "La respuesta explica el estado solicitado.",
+                "quality": True,
+            }
+        }
 
     monkeypatch.setattr(runner.judge, "judge_all", fake_judge)
+    original_evals = evals_md.read_text()
 
-    runner.run_judge(1, round_number=2)
+    runner.run_judge(1, round_number=2, update_report=False)
 
     assert guarded_paths == [labels_path]
-    assert (runs_dir / f"{stamp}-judge-r2.json").is_file()
+    result = json.loads((runs_dir / f"{stamp}-judge-r2.json").read_text())
+    assert result["verdicts"]["anon-r2"]["groundedness_reason"].startswith("El estado pendiente")
+    assert result["verdicts"]["anon-r2"]["quality_reason"].startswith("La respuesta explica")
+    assert evals_md.read_text() == original_evals, "round two no debe escribir la lectura aún"
     assert not (runs_dir / f"{stamp}-judge.json").exists()
 
 
@@ -747,7 +758,7 @@ def test_make_round_two_judge_target_selects_round_two():
         cwd=REPO_ROOT,
         check=True,
     ).stdout
-    assert "--judge --round 2" in output
+    assert "--judge --round 2 --no-report" in output
 
 
 def test_make_round_two_template_target_selects_round_two():

@@ -730,7 +730,7 @@ def require_committed_labels(
         raise SystemExit(f"El archivo de etiquetas tiene cambios sin commitear: {relative_path}.")
 
 
-def run_judge(max_usd: float, *, round_number: int = 1) -> None:
+def run_judge(max_usd: float, *, round_number: int = 1, update_report: bool = True) -> None:
     """Judge the labeled items blind and report agreement per variant. Costs money."""
     stamp, runs = _latest_runs()
     labels_path = _labels_path(round_number)
@@ -755,6 +755,11 @@ def run_judge(max_usd: float, *, round_number: int = 1) -> None:
     if result is None:
         print("Sin etiquetas humanas: el juez no se valida ni se presenta.")
         return
+    if not update_report:
+        print(
+            f"Acuerdo y justificaciones de ronda {round_number} guardados (EVALS.md sin cambios)."
+        )
+        return
     summaries = [Summary(**_summary_fields(d["summary"])) for d in runs.values()]
     EVALS_MD.write_text(
         update_evals_md(
@@ -777,6 +782,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--label-template", action="store_true")
     parser.add_argument("--judge", action="store_true")
     parser.add_argument("--round", type=int, choices=(1, 2), default=1)
+    parser.add_argument(
+        "--no-report",
+        action="store_true",
+        help="Guarda veredictos y razones sin modificar EVALS.md.",
+    )
     parser.add_argument(
         "--render-run",
         help="Regenera EVALS.md desde el id explícito de una corrida comparativa guardada.",
@@ -803,7 +813,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         parser.exit(2, "MAX_USD es obligatorio: declara el presupuesto antes de correr.\n")
     budget = float(max_usd)
     if args.judge:
-        run_judge(budget, round_number=args.round)
+        run_judge(budget, round_number=args.round, update_report=not args.no_report)
         return
     try:
         variants = [VARIANTS[name] for name in str(args.variant).split(",")]

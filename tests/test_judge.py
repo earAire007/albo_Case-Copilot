@@ -80,7 +80,15 @@ def test_label_guide_and_judge_prompt_share_rubric(monkeypatch):
             calls.append(kwargs)
             return SimpleNamespace(
                 content=[
-                    SimpleNamespace(type="text", text='{"groundedness": true, "quality": false}')
+                    SimpleNamespace(
+                        type="text",
+                        text=(
+                            '{"groundedness_reason":"El monto aparece en evidencia.",'
+                            '"groundedness":true,'
+                            '"quality_reason":"La respuesta no contesta.",'
+                            '"quality":false}'
+                        ),
+                    )
                 ]
             )
 
@@ -89,8 +97,23 @@ def test_label_guide_and_judge_prompt_share_rubric(monkeypatch):
             self.messages = FakeMessages()
 
     monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(AsyncAnthropic=FakeAnthropic))
-    anyio.run(judge.judge_all, [{"id": "r1", "message": "m", "evidence": "e", "reply": "r"}])
-    assert calls[0]["system"] == judge.RUBRIC
+    verdicts = anyio.run(
+        judge.judge_all, [{"id": "r1", "message": "m", "evidence": "e", "reply": "r"}]
+    )
+    assert judge.VERDICT_SCHEMA["required"] == [
+        "groundedness_reason",
+        "groundedness",
+        "quality_reason",
+        "quality",
+    ]
+    assert calls[0]["system"].startswith(judge.RUBRIC)
+    assert "dato concreto de la evidencia" in calls[0]["system"]
+    assert verdicts["r1"] == {
+        "groundedness_reason": "El monto aparece en evidencia.",
+        "groundedness": True,
+        "quality_reason": "La respuesta no contesta.",
+        "quality": False,
+    }
 
 
 def test_judge_prompt_content_cannot_close_its_block():
