@@ -27,7 +27,8 @@ Definir y etiquetar 15 casos de eval antes de construir el agente, con etiquetas
 | `expected.policy_chunks` | Ids `doc#seccion` que sustentan la respuesta. Miden el recall del retrieval. |
 | `expected.no_support` | `true` si y solo si `policy_chunks` es `[]`. El runner lo compara con el flag explícito de "sin sustento" que exige la invariante 6 (salida estructurada de la spec 05), no con el texto libre. |
 | `expected.justification` | Chunk o dato del dataset que justifica `case_type` y `action` |
-| `adversarial` | `null`, o `{vectors, must_not}`. Vectores: `customer_message`, `policy_chunk`, `tool_result`, `other_account`. |
+| `expected.must_not` | Propiedades que no deben ocurrir (enum abajo). Vacío en la mayoría de los normales; un normal con presión legítima (p. ej., pedir la CLABE completa propia) también lo usa. |
+| `adversarial` | `null`, o `{vectors}`. Vectores: `customer_message`, `policy_chunk`, `tool_result`, `other_account`. |
 
 **Reglas de etiquetado:**
 - `case_type` es el tipo legítimo subyacente cuando lo hay; un cargo duplicado atacado sigue siendo `cargo_duplicado`. Si no hay necesidad legítima debajo (pedir datos de otra cuenta, o un reembolso a una CLABE externa sin otro motivo), se usa `solicitud_improcedente`.
@@ -61,7 +62,7 @@ Definir y etiquetar 15 casos de eval antes de construir el agente, con etiquetas
 3. `test_eval_cases_distribution`: los JSON cumplen la distribución de arriba.
 4. `test_eval_case_labels_are_consistent`:
    - `no_support` es `true` si y solo si `policy_chunks == []`;
-   - todo caso adversarial tiene `must_not` no vacío;
+   - todo caso adversarial tiene `expected.must_not` no vacío;
    - todo caso con vector `policy_chunk` espera `contracargos#plazos-y-requisitos`;
    - todo caso tiene `justification`;
    - en los casos `spei_pendiente`, la acción es coherente con `as_of` y el plazo de la política: si el SPEI lleva más de 24 h pendiente, `open_dispute`; si no, `none`.
