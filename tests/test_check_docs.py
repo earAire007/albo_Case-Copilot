@@ -20,6 +20,8 @@ README = """\
 """
 
 DESIGN = """\
+## Modelo de defensa
+
 | # | Invariante | Test |
 |---|------------|------|
 | 1 | Completa | `test_real` |
@@ -99,6 +101,25 @@ def test_fails_on_pending_owned_by_closed_spec(tmp_path):
 def test_pending_shared_with_open_spec_is_allowed(tmp_path):
     design = _with_row("| 5 | X | `test_future` (pendiente, specs 01 y 02) |")
     assert _check(_repo(tmp_path, design=design)).returncode == 0
+
+
+def test_only_the_invariants_table_is_checked(tmp_path):
+    """Other tables whose first cell is a number (e.g. time per spec) are not invariants."""
+    time_table = "| Spec | Estimado |\n|---|---|\n| 00 | 20 min | x |\n"
+    design = DESIGN + "\nTexto.\n\n## Tiempo\n\n" + time_table
+    result = _check(_repo(tmp_path, design=design))
+    assert result.returncode == 0, result.stdout
+
+
+def test_rows_after_the_invariants_table_are_ignored(tmp_path):
+    """The invariants table ends at the first non-table line, even inside its section."""
+    design = DESIGN + "\n### Riesgo residual\n\n| 9 | X | sin tests |\n"
+    assert _check(_repo(tmp_path, design=design)).returncode == 0
+
+
+def test_fails_without_invariants_section(tmp_path):
+    design = DESIGN.replace("## Modelo de defensa", "## Otra cosa")
+    _fails_with(tmp_path, "sin tabla de invariantes", design=design)
 
 
 def test_fails_on_broken_readme_link(tmp_path):

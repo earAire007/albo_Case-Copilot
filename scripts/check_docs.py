@@ -1,6 +1,7 @@
 """Deterministic doc-coherence checks (spec 01b). Used by `make check-docs` and /check-docs.
 
-DESIGN.md invariants table — the third cell lists coverage items separated by ";":
+DESIGN.md invariants table (the first table under "## Modelo de defensa"; missing -> error)
+— the third cell lists coverage items separated by ";":
     `test_name` | `test_name[a\\|b]`      a test that must exist in tests/
     contrato `name`                       an import-linter contract
     ... (parcial: <qué cubre>)            covers only part of the invariant
@@ -30,6 +31,7 @@ PARTIAL = re.compile(r"\(parcial\b", re.IGNORECASE)
 SPEC_ID = re.compile(r"\b(\d{2}[a-z]?)\b")
 LINK = re.compile(r"\]\(([^)]+\.md)\)")
 STATUS_LINE = re.compile(r"^\*\*Estado:\*\*\s*(.+?)\s*$", re.MULTILINE)
+INVARIANTS_HEADING = "## Modelo de defensa"
 NON_SPEC_FILES = {"README.md", "_template.md"}
 CLOSED = "cerrada"
 
@@ -40,6 +42,23 @@ def table_rows(text: str) -> list[list[str]]:
         if line.startswith("|"):
             rows.append([c.strip() for c in CELL_SPLIT.split(line.strip().strip("|"))])
     return rows
+
+
+def invariants_table(text: str) -> list[list[str]] | None:
+    """Rows of the first table under the invariants heading; None if there is none.
+    Other tables (risks, time per spec) may also start with a number: they are not read."""
+    lines = text.splitlines()
+    try:
+        start = lines.index(INVARIANTS_HEADING)
+    except ValueError:
+        return None
+    block: list[str] = []
+    for line in lines[start + 1 :]:
+        if line.startswith("|"):
+            block.append(line)
+        elif block or line.startswith("#"):
+            break
+    return table_rows("\n".join(block)) if block else None
 
 
 def defined_tests(tests_dir: Path) -> set[str]:
@@ -62,7 +81,10 @@ def check_design(root: Path) -> list[str]:
     errors: list[str] = []
     existing = defined_tests(root / "tests")
     statuses = spec_statuses(root)
-    for cells in table_rows((root / "DESIGN.md").read_text(encoding="utf-8")):
+    rows = invariants_table((root / "DESIGN.md").read_text(encoding="utf-8"))
+    if rows is None:
+        return [f"DESIGN.md: sin tabla de invariantes bajo '{INVARIANTS_HEADING}'"]
+    for cells in rows:
         if len(cells) < 3 or not cells[0].isdigit():
             continue
         where = f"DESIGN.md invariante {cells[0]}"
