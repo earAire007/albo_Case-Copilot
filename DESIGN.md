@@ -70,6 +70,7 @@ Sensor de fugas en tests (`tests/sensitive_logs.py`, sin opción de desactivarlo
 
 ## Trade-offs y decisiones
 
+- **Sin fallbacks del servidor ante rechazos del modelo** (spec 05b). En este sistema, un rechazo es más probable ante contenido adversarial, y reintentar con otro modelo sería buscar uno que acepte la injection. El rechazo va a `requiere_humano` y queda como señal en la traza. Los fallbacks pueden ser una variante en la comparación del cierre.
 - **Loop propio y delgado sobre el SDK del proveedor, no un framework de agentes** (spec 05a; resuelve el pendiente de la spec 00). El harness necesita controlar qué entra al contexto, la sesión MCP fijada al cliente, el enmascarado de entrada y las trazas por paso; un framework se interpone justo en esas costuras.
 
 ## Qué recorté y por qué

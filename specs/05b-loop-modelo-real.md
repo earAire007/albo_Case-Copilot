@@ -15,7 +15,14 @@ Conectar el harness determinista de la 05a con el modelo real: el loop de tool c
 
 ## Contratos
 
-- **Adaptador del proveedor** (`backend/llm/`): implementa el puerto de la 05a extendido con tool calling, sobre el SDK oficial de Anthropic. El modelo, el timeout y la tabla de precios se configuran por entorno (`.env`), sin valores en el código.
+- **Puerto del modelo** (`backend/agent/model.py`, puro): `ToolCallingModel.step(system, messages, tools) -> ModelStep(blocks, stop_reason, usage)`, con dataclasses propias. El adaptador `backend/llm/` traduce desde y hacia el SDK oficial de Anthropic.
+- **Adaptador:**
+  - modelo por defecto `claude-opus-5-5`, verificado en la referencia oficial de la API (tabla de modelos del 2026-10-06), con precios de $4 / $20 por millón de tokens de entrada / salida; modelo, esfuerzo (`EFFORT`, inicial `medium`, el valor por defecto de ese modelo), precios y timeout se configuran por entorno;
+  - `tool_choice` en `auto`, porque el modelo no acepta uno forzado;
+  - el cliente se crea con `max_retries=0`: los reintentos son nuestros, para trazarlos e inyectar el sleep en los tests;
+  - **sin fallbacks del servidor:** un `refusal` va a `requiere_humano`, con el motivo en la traza como señal.
+- **Thinking:** el modelo siempre piensa. El loop devuelve la respuesta completa del asistente en cada turno, con los bloques de thinking sin cambios, pero las trazas **no** persisten esos bloques: solo el texto, las llamadas a tools y `reasoning_summary`.
+- **Motivos de término:** `refusal` y `max_tokens` van a `requiere_humano`, con el motivo trazado.
 - **Loop** `run_case(store, ctx, session, model)` en `backend/orchestrator/`:
   - Las tools que ve el modelo son las de `list_tools` de la sesión MCP fijada al cliente del caso, más `search_policies(query, k)` como tool del harness (sin `index` en su esquema).
   - Cada resultado de tool entra a la conversación enmascarado y dentro de `<datos_no_confiables>`, igual que en el prompt de la 05a.
@@ -67,4 +74,5 @@ Riesgo: `facts` no se repara aunque algunos de sus rechazos sean falsos positivo
 
 ## Cambios durante la implementación
 
-<!-- Se llena al cerrar. -->
+- **Fallbacks del servidor desactivados.** En este sistema, un rechazo es más probable ante contenido adversarial, y reintentar con otro modelo sería buscar uno que acepte la injection. El rechazo va a `requiere_humano` y queda como señal en la traza. Los fallbacks pueden ser una variante en la comparación del cierre.
+- **Requisito para la spec 07:** la consola muestra el razonamiento con `AgentOutput.reasoning_summary`, ya validado (sin tramos de dígitos) y enmascarado en las trazas, nunca con los bloques de thinking.
