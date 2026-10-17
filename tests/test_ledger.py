@@ -191,7 +191,8 @@ def test_concurrent_approve_and_reject_stay_consistent():
 def test_decision_and_execution_writes_only_in_ledger():
     """Textual guard, widened: no INSERT/UPDATE/DELETE/REPLACE on the ledger tables."""
     pattern = re.compile(
-        r"(INSERT\s+(OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM|REPLACE\s+INTO)\s+(decisions|executions)\b",
+        r"(INSERT\s+(OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM|REPLACE\s+INTO)\s+(decisions|executions)\b"
+        r"|DROP\s+TRIGGER",
         re.IGNORECASE,
     )
     offenders = [

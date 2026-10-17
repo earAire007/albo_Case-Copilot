@@ -84,3 +84,16 @@ def test_stuck_job_out_of_attempts_requires_human():
     work(store, idle, now=LATER)
     assert idle.requests == [], "no se reprocesa sin límite"
     assert _case(client, store, case_id)["status"] == "requires_human"
+
+
+def test_requeued_job_of_finished_case_is_skipped():
+    store = Store(":memory:")
+    client = client_for(store)
+    case_id = post_ticket(client).json()["case_id"]
+    work(store, FakeModel(final()))
+    assert _case(client, store, case_id)["status"] == "answered"
+    with store.connection:
+        store.connection.execute("UPDATE jobs SET status = 'queued' WHERE case_id = ?", (case_id,))
+    idle = FakeModel()
+    assert work(store, idle) is None
+    assert idle.requests == [] and _case(client, store, case_id)["status"] == "answered"

@@ -94,5 +94,8 @@ def test_trace_view_hides_full_prompt():
     client = client_for(store)
     case_id = post_ticket(client, key="k-p").json()["case_id"]
     work(store, FakeModel(final()))
+    # The 05b loop does not trace a "prompt" step; run_turn (05a) does. Insert one so the
+    # filter is actually exercised.
+    store.add_trace(case_id, "prompt", {"messages": [{"role": "user", "content": "x"}]})
     steps = {t["step"] for t in client.get(f"/cases/{case_id}/trace").json()}
     assert "prompt" not in steps and "model_step" in steps
