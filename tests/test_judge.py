@@ -2,7 +2,10 @@
 por variante, y una plantilla que nunca pisa etiquetas humanas."""
 
 import json
+import sys
+from types import SimpleNamespace
 
+import anyio
 import pytest
 
 from evals import judge
@@ -56,13 +59,38 @@ def test_label_template_never_overwrites_human_labels(tmp_path):
     judge.write_label_template(path, blinded)
     entries = json.loads(path.read_text())
     assert len(entries) == len(blinded)
-    assert all(e["groundedness"] is None and e["quality"] is None for e in entries)
+    assert all(
+        e["groundedness"] is None and e["quality"] is None and e["notes"] is None for e in entries
+    )
     judge.write_label_template(path, blinded)  # still empty: may be regenerated
     entries[0]["groundedness"] = True
     path.write_text(json.dumps(entries))
     with pytest.raises(FileExistsError):
         judge.write_label_template(path, blinded)
     assert json.loads(path.read_text())[0]["groundedness"] is True
+
+
+def test_label_guide_and_judge_prompt_share_rubric(monkeypatch):
+    assert judge.LABEL_GUIDE_PATH.read_text() == judge.render_label_guide()
+
+    calls = []
+
+    class FakeMessages:
+        async def create(self, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(
+                content=[
+                    SimpleNamespace(type="text", text='{"groundedness": true, "quality": false}')
+                ]
+            )
+
+    class FakeAnthropic:
+        def __init__(self, **kwargs):
+            self.messages = FakeMessages()
+
+    monkeypatch.setitem(sys.modules, "anthropic", SimpleNamespace(AsyncAnthropic=FakeAnthropic))
+    anyio.run(judge.judge_all, [{"id": "r1", "message": "m", "evidence": "e", "reply": "r"}])
+    assert calls[0]["system"] == judge.RUBRIC
 
 
 def test_judge_prompt_content_cannot_close_its_block():
