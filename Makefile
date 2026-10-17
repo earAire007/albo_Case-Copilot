@@ -44,8 +44,10 @@ console:
 	cd console && npm run dev
 
 # Spec 08. Real model, costs money: outside `make check`. MAX_USD is mandatory.
+# (A literal comma inside $(or ...) splits arguments: keep the list in a variable.)
+DEFAULT_VARIANTS := opus-5.5,sonnet-5.5
 evals:
-	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python -m evals.runner --variant $(or $(VARIANT),opus-5.5,sonnet-5.5) $(if $(MAX_USD),--max-usd $(MAX_USD),)
+	PYTHONPATH=. uv run $(if $(wildcard .env),--env-file .env,) python -m evals.runner --variant $(or $(VARIANT),$(DEFAULT_VARIANTS)) $(if $(MAX_USD),--max-usd $(MAX_USD),)
 
 # ~10 anonymous answers from the latest run for a person to label (never overwrites labels).
 evals-label-template:
