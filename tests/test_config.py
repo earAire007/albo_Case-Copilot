@@ -3,6 +3,7 @@ y el `.env.example` versionado construye la configuración de producción sin er
 (hallazgo del clon limpio: `LLM_TIMEOUT_S=` vacía tumbaba el arranque en Docker)."""
 
 import logging
+import re
 from pathlib import Path
 
 import pytest
@@ -81,11 +82,13 @@ def test_env_example_builds_production_config(monkeypatch):
     _production_app(store=Store(":memory:"))  # raises SystemExit on invalid config
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="pendiente: comentar cada variable de .env.example (lectura bloqueada por "
-    "la regla deny Read(./.env.*)); al pasar, strict obliga a quitar esta marca",
-)
+def test_env_example_has_nothing_shaped_like_a_secret():
+    text = ENV_EXAMPLE.read_text(encoding="utf-8")
+    assert not re.search(r"sk-ant-|sk-[A-Za-z0-9_-]{16,}", text), "parece una API key"
+    key = {name: value for _, name, value in _example()}["ANTHROPIC_API_KEY"]
+    assert key == "", "ANTHROPIC_API_KEY va vacía en el ejemplo"
+
+
 def test_env_example_comments_every_variable():
     lines = ENV_EXAMPLE.read_text(encoding="utf-8").splitlines()
     uncommented = [

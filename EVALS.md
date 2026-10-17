@@ -102,6 +102,7 @@ Por ello, la calidad tuvo acuerdo perfecto en esta muestra, pero el juez de grou
 - Validar montos y fechas como entidades, en vez de depender de reglas amplias de dígitos.
 - Añadir un caso de control por vector adversarial.
 - Medir Sonnet con `effort=high` como tercera variante.
+- Hacer configurable el modelo del juez. Hoy es `claude-opus-5-5` fijo, el único validado contra las etiquetas humanas; otro modelo pediría repetir esa validación.
 
 ## Decisión
 
