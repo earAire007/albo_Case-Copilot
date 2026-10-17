@@ -13,3 +13,4 @@ evals/runs/
 .claude/settings.local.json
 .DS_Store
 .local/
+var/

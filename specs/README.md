@@ -10,7 +10,8 @@ Una spec por etapa, máximo una página. Ciclo: spec → commit → implementaci
 | 02 | [Servidor MCP y frontera de seguridad](02-mcp-seguridad.md) | cerrada | 60 min (real: ~55 min, 18:07–19:02 según commits; incluye 3 pasadas del security-reviewer) |
 | 03 | [RAG de políticas](03-rag-politicas.md) | cerrada | 40 min (real: ~17 min, 19:16–19:33 según commits; incluye 2 pasadas del security-reviewer) |
 | 04 | [Casos de eval etiquetados](04-casos-eval.md) | cerrada | 30 min (real: ~30 min, 19:51–20:22 según commits) |
-| 05 | Harness del agente | pendiente | 2 h |
+| 05a | [Harness determinista](05a-harness-determinista.md) | borrador | 70 min |
+| 05b | Loop con el modelo real | pendiente | 50 min |
 | 06 | Webhook y procesamiento asíncrono | pendiente | 40 min |
 | 07 | Consola de operaciones | pendiente | 60 min |
 | — | Cierre: runner + comparación de variantes, DESIGN, EVALS, PLAYBOOK, AI_NOTES | pendiente | 1 h |

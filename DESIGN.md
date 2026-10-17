@@ -4,7 +4,7 @@
 
 ## Arquitectura del harness
 
-<!-- spec 05 -->
+<!-- spec 05a (componentes deterministas) y 05b (loop con el modelo) -->
 
 ## Modelo de defensa
 
@@ -13,11 +13,11 @@ Invariantes definidas en `specs/00-fundamentos.md`. Cada una con los tests y con
 | # | Invariante | Tests y contratos |
 |---|------------|-------------------|
 | 1 | Sin capacidad de mover dinero | `test_mcp_exposes_no_money_moving_tool`; `test_mock_api_has_no_write_routes` |
-| 2 | Planner/executor separados, gate humano en código | `test_executor_requires_recorded_approval` (pendiente, spec 05); `test_validator_rejects_action_outside_enum` (pendiente, spec 05); contrato `agente no importa executor` (pendiente, spec 05) |
+| 2 | Planner/executor separados, gate humano en código | `test_executor_requires_recorded_approval` (pendiente, spec 05a); `test_validator_rejects_action_outside_enum` (pendiente, spec 05a); contrato `agente no importa executor` (pendiente, spec 05a) |
 | 3 | Scoping de `customer_id` por capacidad | `test_mcp_tools_ignore_model_supplied_customer_id`, `test_other_account_scenario_is_unreachable`; `test_endpoints_never_return_other_customer_data` |
-| 4 | Enmascarado de datos sensibles en la frontera | `test_fixture_fails_on_raw_identifier`, `test_sensor_fails_on_print`, `test_sensor_fails_on_stderr`, `test_sensor_attributes_exception_message_leak` (parcial: logs, stdout, stderr y excepciones de tests); `test_mask_applied_before_model_and_traces`, `test_mask_reuses_detector_and_keeps_tracking_key`, `test_free_text_and_error_masking_through_mcp`, `test_non_mcp_errors_are_masked_over_stdio`; `test_persisted_traces_have_no_sensitive_data` (pendiente, spec 05); `test_customer_message_masking_is_decided` (pendiente, spec 05: ¿se enmascara antes del modelo?); contrato `unmask is protected` (hoy sin importadores permitidos; pendiente, spec 05: permitir solo al executor) |
-| 5 | Contenido no confiable (clientes, políticas, resultados de tools) delimitado | `test_validator_rejects_injected_action[customer_message\|policy_chunk\|tool_result]` (pendiente, spec 05); `test_untrusted_content_is_delimited` (parcial: chunks de política y campos de terceros del MCP); `test_untrusted_content_is_delimited_in_prompt` (pendiente, spec 05) |
-| 6 | Groundedness verificada en código | `test_unsupported_citation_or_amount_is_flagged` (pendiente, spec 05); `test_output_schema_has_no_support_flag` (pendiente, spec 05); `test_harness_injects_case_as_of_as_now` (pendiente, spec 05); `test_citations_belong_to_retrieved_chunks` (pendiente, spec 05: pertenencia, no relevancia, que cubren `no_support` y el juez de groundedness) |
+| 4 | Enmascarado de datos sensibles en la frontera | `test_fixture_fails_on_raw_identifier`, `test_sensor_fails_on_print`, `test_sensor_fails_on_stderr`, `test_sensor_attributes_exception_message_leak` (parcial: logs, stdout, stderr y excepciones de tests); `test_mask_applied_before_model_and_traces`, `test_mask_reuses_detector_and_keeps_tracking_key`, `test_free_text_and_error_masking_through_mcp`, `test_non_mcp_errors_are_masked_over_stdio`; `test_persisted_traces_have_no_sensitive_data` (pendiente, spec 05a); `test_customer_message_is_masked_before_model` (pendiente, spec 05a); contrato `unmask is protected` (hoy sin importadores permitidos; pendiente, spec 05a: permitir solo al executor) |
+| 5 | Contenido no confiable (clientes, políticas, resultados de tools) delimitado | `test_validator_rejects_injected_action[customer_message\|policy_chunk\|tool_result]` (pendiente, spec 05a); `test_untrusted_content_is_delimited` (parcial: chunks de política y campos de terceros del MCP); `test_untrusted_content_is_delimited_in_prompt` (pendiente, spec 05a) |
+| 6 | Groundedness verificada en código | `test_unsupported_citation_or_amount_is_flagged` (pendiente, spec 05a); `test_output_schema_has_no_support_flag` (pendiente, spec 05a); `test_harness_injects_case_as_of_as_now` (pendiente, spec 05a); `test_citations_belong_to_retrieved_chunks` (pendiente, spec 05a: pertenencia, no relevancia, que cubren `no_support` y el juez de groundedness) |
 
 ### Riesgo residual y cómo se detecta en producción
 
@@ -44,7 +44,7 @@ Dirección de los errores:
 - **Falsos positivos aceptados:** un número de 13–19 dígitos que pase un checksum por azar (~10 %), cualquier número de 20+ dígitos, formatos tipo RFC/CURP. Sin la excepción, 17 de las 82 claves de rastreo del dataset se detectaban como CLABE o tarjeta.
 - **Falsos negativos conocidos:** una CLABE o tarjeta escrita como `CC` + 18 dígitos; grupos separados cuyo total no mide 13–19 aunque una parte sí (una tarjeta seguida de más grupos); separadores distintos de un solo espacio o guion.
 
-Sensor de fugas en tests (`tests/sensitive_logs.py`, sin opción de desactivarlo): revisa logs (handler en el root logger a DEBUG), stdout, stderr y el texto de excepciones de cada fase (`pytest_runtest_makereport`, sin pedir `capsys`/`capfd`). Puntos ciegos: salida que el test consume con `capsys.readouterr()`, corridas con `-s`, excepciones atrapadas que nunca se imprimen ni se loguean, y trazas persistidas (pendiente, spec 05).
+Sensor de fugas en tests (`tests/sensitive_logs.py`, sin opción de desactivarlo): revisa logs (handler en el root logger a DEBUG), stdout, stderr y el texto de excepciones de cada fase (`pytest_runtest_makereport`, sin pedir `capsys`/`capfd`). Puntos ciegos: salida que el test consume con `capsys.readouterr()`, corridas con `-s`, excepciones atrapadas que nunca se imprimen ni se loguean, y trazas persistidas (pendiente, spec 05a).
 
 ## Contexto y costos
 
@@ -52,15 +52,15 @@ Sensor de fugas en tests (`tests/sensitive_logs.py`, sin opción de desactivarlo
 
 ## Manejo de fallas del proveedor
 
-<!-- spec 05 -->
+<!-- spec 05b -->
 
 ## Observabilidad y alertas
 
-<!-- spec 05 -->
+<!-- spec 05a (trazas) y 05b (tokens, costo y latencia por paso) -->
 
 ## Trade-offs y decisiones
 
-<!-- -->
+- **Loop propio y delgado sobre el SDK del proveedor, no un framework de agentes** (spec 05a; resuelve el pendiente de la spec 00). El harness necesita controlar qué entra al contexto, la sesión MCP fijada al cliente, el enmascarado de entrada y las trazas por paso; un framework se interpone justo en esas costuras.
 
 ## Qué recorté y por qué
 
