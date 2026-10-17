@@ -62,7 +62,7 @@ Dirección de los errores:
 - **Falsos positivos aceptados:** un número de 13–19 dígitos que pase un checksum por azar (~10 %), cualquier número de 20+ dígitos, formatos tipo RFC/CURP. Sin la excepción, 17 de las 82 claves de rastreo del dataset se detectaban como CLABE o tarjeta.
 - **Falsos negativos conocidos:** una CLABE o tarjeta escrita como `CC` + 18 dígitos; grupos separados cuyo total no mide 13–19 aunque una parte sí (una tarjeta seguida de más grupos); separadores distintos de un solo espacio o guion.
 
-Sensor de fugas en tests (`tests/sensitive_logs.py`, sin opción de desactivarlo): revisa logs (handler en el root logger a DEBUG), stdout, stderr y el texto de excepciones de cada fase (`pytest_runtest_makereport`, sin pedir `capsys`/`capfd`). Puntos ciegos: salida que el test consume con `capsys.readouterr()`, corridas con `-s`, excepciones atrapadas que nunca se imprimen ni se loguean, y trazas persistidas (pendiente, spec 05a).
+Sensor de fugas en tests (`tests/sensitive_logs.py`, sin opción de desactivarlo): revisa logs (handler en el root logger a DEBUG), stdout, stderr y el texto de excepciones de cada fase (`pytest_runtest_makereport`, sin pedir `capsys`/`capfd`). Puntos ciegos: salida que el test consume con `capsys.readouterr()`, corridas con `-s`, excepciones atrapadas que nunca se imprimen ni se loguean. Las trazas persistidas no son un punto ciego: las cubre `test_persisted_traces_have_no_sensitive_data` (spec 05a).
 
 ## Contexto y costos
 
