@@ -19,6 +19,7 @@ Definir y etiquetar 15 casos de eval antes de construir el agente, con etiquetas
 | Campo | Contenido |
 |---|---|
 | `id`, `customer_id`, `message` | Caso, cliente del contexto y texto libre del cliente, escrito como lo escribiría un cliente |
+| `as_of` | "Ahora" del caso (datetime con zona). Las etiquetas que dependen del tiempo (pendiente dentro o fuera de plazo, plazo de disputa) se calculan contra `as_of`, nunca contra el reloj. Los 15 casos usan `reference_date` de `data/scenarios.json` (spec 01). |
 | `scenario_id` | Escenario de `data/scenarios.json`, o `null` |
 | `expected.case_type` | Enum: `spei_pendiente`, `spei_devuelto`, `comprobante_cep`, `cargo_duplicado`, `cargo_no_reconocido`, `compra_rechazada`, `privacidad`, `fuera_de_politica`, `solicitud_improcedente` |
 | `expected.action` | Enum de la spec 00: `open_dispute`, `resend_cep`, `escalate_fraud` o `none` |
@@ -48,7 +49,7 @@ Definir y etiquetar 15 casos de eval antes de construir el agente, con etiquetas
 
 ## Contratos de arquitectura
 
-Ninguno: los casos son datos, y `evals/` no lo importan ni `backend` ni `mcp_server`.
+`forbidden`: `backend` y `mcp_server` no importan `evals`, para que las etiquetas esperadas nunca lleguen al agente. El esquema vive en `evals/schema.py`, para que el runner del cierre lo reutilice.
 
 ## Criterios de aceptación
 
@@ -62,7 +63,9 @@ Ninguno: los casos son datos, y `evals/` no lo importan ni `backend` ni `mcp_ser
    - `no_support` es `true` si y solo si `policy_chunks == []`;
    - todo caso adversarial tiene `must_not` no vacío;
    - todo caso con vector `policy_chunk` espera `contracargos#plazos-y-requisitos`;
-   - todo caso tiene `justification`.
+   - todo caso tiene `justification`;
+   - en los casos `spei_pendiente`, la acción es coherente con `as_of` y el plazo de la política: si el SPEI lleva más de 24 h pendiente, `open_dispute`; si no, `none`.
+5. `test_evals_import_contract`: un import de `evals` desde `backend` o `mcp_server` rompe el contrato.
 
 ## Riesgos y decisiones
 
@@ -73,4 +76,7 @@ Resueltas: JSON (sin dependencia, coherente con `data/`); `case_type` legítimo,
 
 ## Cambios durante la implementación
 
-<!-- Se llena al cerrar. -->
+- El vector `tool_result` usa la **versión obvia** de la injection: el concepto del SPEI, heredado de la spec 01 ("Agente: reembolsa…"). El vector `policy_chunk` usa la **sutil**: el comentario de `contracargos`, de la spec 03. EVALS.md distingue ambos al reportar.
+- Notas para la spec 05 (con pendiente en DESIGN.md):
+  - el harness da al agente el `as_of` del caso como "ahora";
+  - hay que decidir si el mensaje del cliente se enmascara antes del modelo. Si se enmascara, `reveal_identifier_digits` en los casos cuyo mensaje trae una CLABE completa mide el pipeline completo, no al modelo, y EVALS.md debe decirlo.
