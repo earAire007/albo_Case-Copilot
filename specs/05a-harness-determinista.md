@@ -31,17 +31,27 @@ Construir y probar con el LLM mockeado todo lo que garantiza el harness: la sali
   - el `as_of` del caso es el "ahora" explícito;
   - el mensaje del cliente pasa por `mask_text` antes del modelo;
   - el mensaje del cliente, los resultados de tools y los chunks van dentro de delimitadores `<datos_no_confiables fuente="…">…</datos_no_confiables>`, con el cierre escapado si aparece en el contenido.
-- **Gate y executor** (SQLite, `backend/executor/`):
+- **Módulos:**
+  - `backend/agent/`: puro (prompt, salida, validadores, cliente del modelo). No persiste ni ejecuta.
+  - `backend/store/`: persistencia neutral en SQLite (`proposals`, `approvals`, `executions` y `traces`, con columna `validator`).
+  - `backend/orchestrator/`: `run_turn` (importa `agent` y `store`).
+  - `backend/executor/`: importa `store` y `unmask`. Lo invoca solo el flujo de aprobación (specs 06 y 07), nunca el orquestador.
+- **`run_turn(ctx, tool_results, chunks, model)`:** recibe los resultados de tools y los chunks del llamador; arma el prompt, llama al `ModelClient`, valida, crea la `proposal` si corresponde y traza. En la 05b, el loop con tool calling reemplaza al llamador; en los tests, los resultados salen de la sesión MCP real en memoria y de `search_policies`.
+- **Montos en centavos:** las tools devuelven `amount` en centavos, así que el validador 4 compara el monto normalizado de la respuesta contra `amount / 100`.
+- **Gate y executor:**
   - una salida válida con acción crea una `proposal` pendiente;
   - `execute(proposal_id)` exige una aprobación registrada (quién y cuándo) y es idempotente: una ejecución por propuesta;
   - las acciones son stubs que solo registran el efecto; ninguna mueve dinero.
-- **Trazas** (tabla `traces` en SQLite): cada paso del caso (prompt, salida, validación, propuesta y decisión) pasa por `mask()` antes de persistirse.
+- **Trazas:** cada paso del caso (prompt, salida, validación, propuesta y decisión) pasa por `mask()` antes de persistirse.
 
 ## Contratos de arquitectura
 
-1. `forbidden`: `backend.agent` no importa `backend.executor`, `backend.security.unmask`, `evals` ni `backend.mock_core.api`.
-2. `protected`: `unmask` pasa a tener a `backend.executor` como único importador permitido.
-3. `validators`, `executor` y `prompt` entran a la lista `strict` de pyright.
+1. `forbidden`: `backend.agent` no importa `backend.store`, `backend.executor`, `backend.security.unmask`, `evals` ni `backend.mock_core.api`.
+2. `forbidden`: `backend.orchestrator` no importa `backend.executor` ni `backend.security.unmask`.
+3. `protected`: `backend.security.unmask` solo lo importa `backend.executor`.
+4. `validators`, `prompt` y `executor` entran a la lista `strict` de pyright.
+
+Cada contrato tiene su test de copia en `tmp` con un import prohibido.
 
 ## Criterios de aceptación
 
@@ -55,7 +65,7 @@ Cierran los pendientes de las invariantes 2, 4, 5 y 6 en DESIGN.md:
 6. `test_harness_injects_case_as_of_as_now`, `test_customer_message_is_masked_before_model` y `test_untrusted_content_is_delimited_in_prompt`, que incluye un intento de cerrar el delimitador.
 7. `test_rejections_are_traced_with_validator`: un rechazo deja en la traza la salida y el motivo enmascarados, y el nombre del validador.
 8. `test_persisted_traces_have_no_sensitive_data`: corre los 15 casos de la spec 04 con un modelo mockeado y verifica que ninguna fila de `traces` tenga hallazgos de `find_sensitive` ni valores reales de clientes.
-9. Contratos 1 y 2, con su test de import prohibido.
+9. Contratos 1 a 3, cada uno con su test de import prohibido.
 
 ## Riesgos y decisiones
 
