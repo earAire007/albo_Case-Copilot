@@ -7,7 +7,7 @@ Una spec por etapa, máximo una página. Ciclo: spec → commit → implementaci
 | 00 | [Fundamentos](00-fundamentos.md) | cerrada | 20 min |
 | 01 | [Dominio y sistema simulado](01-dominio-dataset.md) | cerrada | 45 min |
 | 01b | [Harness de desarrollo](01b-harness-desarrollo.md) | cerrada | 45 min |
-| 02 | Servidor MCP y frontera de seguridad | pendiente | 60 min |
+| 02 | [Servidor MCP y frontera de seguridad](02-mcp-seguridad.md) | borrador | 60 min |
 | 03 | RAG de políticas | pendiente | 40 min |
 | 04 | Casos de eval etiquetados | pendiente | 30 min |
 | 05 | Harness del agente | pendiente | 2 h |
