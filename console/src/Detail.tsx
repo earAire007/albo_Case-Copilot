@@ -114,6 +114,18 @@ export function Detail({ caseId, onBack }: { caseId: string; onBack: () => void 
               {proposal.execution && (
                 <pre>{JSON.stringify(proposal.execution.result, null, 2)}</pre>
               )}
+              {data.status === "execution_failed" && (
+                <div className="actions">
+                  <p className="warn">Aprobada, pero la ejecución no quedó registrada.</p>
+                  <button
+                    onClick={() =>
+                      run(() => api.approve(proposal.id, operator), "Ejecución registrada")
+                    }
+                  >
+                    Reintentar ejecución
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="actions">

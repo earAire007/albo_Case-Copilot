@@ -5,6 +5,11 @@ import it; the orchestrator, the worker and the store itself cannot.
 `record_execution` re-checks the approval inside the same IMMEDIATE transaction, so an
 execution without an approved decision is never inserted, even by a caller that evades
 the contract.
+
+Case statuses after the decision (spec 07) are written here, in the same transaction:
+a rejection sets `rejected`; an approval sets `execution_failed` (pessimistic: if the
+execution raises or the process dies before it, the case never looks approved); the
+recorded execution sets `approved`.
 """
 
 import json
@@ -43,6 +48,8 @@ def record_decision(
                     " VALUES (?, ?, ?, ?, ?)",
                     (proposal_id, mask_text(approver.strip()), decision, snapshot, now_iso()),
                 )
+                status = "rejected" if decision == "rejected" else "execution_failed"
+                _set_case_status(store.connection, proposal_id, status)
         except sqlite3.IntegrityError as exc:
             raise ValueError(
                 "la propuesta ya tiene una decisión, o la decisión no es válida"
@@ -87,6 +94,8 @@ def _record_execution_locked(
         row = db.execute(
             "SELECT result FROM executions WHERE proposal_id = ?", (proposal_id,)
         ).fetchone()
+        if row is not None:
+            _set_case_status(db, proposal_id, "approved")
         db.execute("COMMIT")
     except BaseException:
         db.execute("ROLLBACK")
@@ -95,3 +104,12 @@ def _record_execution_locked(
         raise NotApprovedError("la propuesta no tiene una aprobación registrada")
     stored: dict[str, Any] = json.loads(row["result"])
     return stored
+
+
+def _set_case_status(db: sqlite3.Connection, proposal_id: int, status: str) -> None:
+    """Inside the caller's transaction."""
+    db.execute(
+        "UPDATE cases SET status = ?, updated_at = ?"
+        " WHERE id = (SELECT case_id FROM proposals WHERE id = ?)",
+        (status, now_iso(), proposal_id),
+    )

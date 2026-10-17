@@ -21,7 +21,11 @@ from typing import Any, Concatenate
 from backend.security.masking import Json, mask, mask_text
 
 DEFAULT_DB = Path(__file__).resolve().parents[2] / "var" / "copilot.db"
-FINAL_STATUSES = frozenset({"proposal_pending", "answered", "requires_human"})
+# Decided statuses (spec 07) are assigned only by backend.store.ledger, in the same
+# transaction as the decision or the execution, and never overwritten.
+DECIDED_STATUSES = frozenset({"approved", "rejected", "execution_failed"})
+FINAL_STATUSES = frozenset({"proposal_pending", "answered", "requires_human"}) | DECIDED_STATUSES
+_NOT_DECIDED = "status NOT IN ({})".format(", ".join(f"'{x}'" for x in sorted(DECIDED_STATUSES)))
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cases (
@@ -85,7 +89,8 @@ CREATE TABLE IF NOT EXISTS traces (
 );
 """
 # Bump on every schema change: there are no migrations, an outdated database is refused.
-SCHEMA_VERSION = 1  # spec 07: final_reply, edited_by, edited_at, reply_snapshot
+# Spec 07: final_reply, edited_by, edited_at and reply_snapshot (1); decided statuses (2).
+SCHEMA_VERSION = 2
 _TABLES = ("cases", "jobs", "proposals", "decisions", "executions", "traces")
 
 
@@ -218,9 +223,13 @@ class Store:
 
     @_locked
     def set_case_status(self, case_id: str, status: str) -> None:
+        """Worker statuses only. A decided case is never overwritten (a late worker write,
+        e.g. racing an approval, is a no-op)."""
+        if status in DECIDED_STATUSES:
+            raise ValueError("los estados de decisión los asigna solo el ledger")
         with self._db:
             self._db.execute(
-                "UPDATE cases SET status = ?, updated_at = ? WHERE id = ?",
+                f"UPDATE cases SET status = ?, updated_at = ? WHERE id = ? AND {_NOT_DECIDED}",
                 (status, now_iso(), case_id),
             )
 
@@ -254,7 +263,8 @@ class Store:
                     "UPDATE jobs SET status = 'failed' WHERE case_id = ?", (row["case_id"],)
                 )
                 self._db.execute(
-                    "UPDATE cases SET status = 'requires_human', updated_at = ? WHERE id = ?",
+                    "UPDATE cases SET status = 'requires_human', updated_at = ?"
+                    f" WHERE id = ? AND {_NOT_DECIDED}",
                     (now_iso(), row["case_id"]),
                 )
             cursor = self._db.execute(

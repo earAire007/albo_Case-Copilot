@@ -50,7 +50,14 @@ def _approve_locked(store: Store, proposal_id: int, approver: str) -> dict[str, 
             raise ConflictError("la propuesta ya tiene una decisión") from exc
     elif current["decision"] != "approved":
         raise ConflictError("una propuesta rechazada no puede aprobarse")
-    return execute(store, proposal_id)
+    try:
+        return execute(store, proposal_id)
+    except Exception as exc:
+        # The case stays `execution_failed` (set with the decision); approve can be retried.
+        # Never echo the exception: ops get its type.
+        case_id = store.get_proposal(proposal_id)["case_id"]
+        store.add_trace(case_id, "execution_failed", {"kind": type(exc).__name__})
+        raise
 
 
 def reject(store: Store, proposal_id: int, approver: str, reason: str) -> dict[str, Any]:

@@ -84,6 +84,29 @@ test("shows reasoning and tool calls, never thinking, and approves via the API",
   expect(JSON.parse(String(approve.init?.body))).toEqual({ approver: "ana" });
 });
 
+test("an approved case whose execution failed offers a retry", async () => {
+  const failed: Case = {
+    ...CASE,
+    status: "execution_failed",
+    proposal: {
+      ...CASE.proposal!,
+      decision: { approver: "ana", decision: "approved", reply_snapshot: null, decided_at: "x" },
+    },
+  };
+  const calls: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      calls.push(url);
+      return new Response(JSON.stringify(url.endsWith("/trace") ? [] : failed), { status: 200 });
+    }),
+  );
+  render(<Detail caseId="case_1" onBack={() => {}} />);
+  expect(screen.queryByRole("button", { name: "Aprobar" })).toBeNull();
+  fireEvent.click(await screen.findByRole("button", { name: "Reintentar ejecución" }));
+  await waitFor(() => expect(calls).toContain("/api/proposals/7/approve"));
+});
+
 test("shows the API error message", async () => {
   vi.stubGlobal(
     "fetch",

@@ -2,7 +2,16 @@ import { useEffect, useState } from "react";
 
 import { api, errorText, type Case } from "./api";
 
-const STATUSES = ["", "queued", "proposal_pending", "answered", "requires_human"];
+const STATUSES = [
+  "",
+  "queued",
+  "proposal_pending",
+  "answered",
+  "requires_human",
+  "approved",
+  "rejected",
+  "execution_failed",
+];
 
 export function Inbox({ onOpen }: { onOpen: (id: string) => void }) {
   const [status, setStatus] = useState("");
