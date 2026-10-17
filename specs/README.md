@@ -4,9 +4,9 @@ Una spec por etapa, máximo una página. Ciclo: spec → commit → implementaci
 
 | # | Spec | Estado | Tiempo estimado |
 |---|------|--------|-----------------|
-| 00 | [Fundamentos](00-fundamentos.md) | cerrada | 20 min |
-| 01 | [Dominio y sistema simulado](01-dominio-dataset.md) | cerrada | 45 min |
-| 01b | [Harness de desarrollo](01b-harness-desarrollo.md) | cerrada | 45 min |
+| 00 | [Fundamentos](00-fundamentos.md) | cerrada | 20 min (real: n/d; commits intercalados con la 01 y la 01b) |
+| 01 | [Dominio y sistema simulado](01-dominio-dataset.md) | cerrada | 45 min (real: ~40 min, 14:05–14:44 según commits) |
+| 01b | [Harness de desarrollo](01b-harness-desarrollo.md) | cerrada | 45 min (real: ~1 h 45 min, 16:04–17:47 según commits) |
 | 02 | [Servidor MCP y frontera de seguridad](02-mcp-seguridad.md) | cerrada | 60 min (real: ~55 min, 18:07–19:02 según commits; incluye 3 pasadas del security-reviewer) |
 | 03 | [RAG de políticas](03-rag-politicas.md) | cerrada | 40 min (real: ~17 min, 19:16–19:33 según commits; incluye 2 pasadas del security-reviewer) |
 | 04 | [Casos de eval etiquetados](04-casos-eval.md) | cerrada | 30 min (real: ~30 min, 19:51–20:22 según commits) |
