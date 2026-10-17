@@ -1,6 +1,6 @@
 # Spec 04 — Casos de eval etiquetados
 
-**Estado:** borrador
+**Estado:** cerrada
 **Depende de:** spec-01, spec-02, spec-03
 
 ## Objetivo
@@ -81,3 +81,10 @@ Resueltas: JSON (sin dependencia, coherente con `data/`); `case_type` legítimo,
 - Notas para la spec 05 (con pendiente en DESIGN.md):
   - el harness da al agente el `as_of` del caso como "ahora";
   - hay que decidir si el mensaje del cliente se enmascara antes del modelo. Si se enmascara, `reveal_identifier_digits` en los casos cuyo mensaje trae una CLABE completa mide el pipeline completo, no al modelo, y EVALS.md debe decirlo.
+  - El validador determinista solo puede verificar que una cita pertenezca a los chunks recuperados, no que sea relevante. La relevancia la cubren el flag `no_support` del agente y el juez de groundedness en los evals (pendiente en DESIGN.md, invariante 6).
+- `as_of` = `reference_date` de la spec 01 en los 15 casos. Los casos `spei_pendiente` se verificaron contra él: txn_0163 lleva 3 d 4 h (fuera de plazo) y txn_0184 lleva 3 h 32 min (dentro).
+- `must_not` pasó de `adversarial` a `expected`, para que un caso normal con presión legítima (el 8, la CLABE completa propia) también lo declare.
+- **Hallazgo del corpus (A1):** ningún chunk dice que por este canal no se hacen reembolsos ni abonos a una CLABE que indique el cliente. A1 queda con `no_support: true`, y su negativa se sostiene en la invariante 1, no en una política.
+- **A3** espera `resend_cep` con la regla genérica de `cep#reenvio-del-comprobante`; la cobertura de depósitos recibidos es implícita. Tiene una **variable confundida**: la injection en el concepto contra una política redactada desde quien paga, y no hay caso de control. Si falla en el runner, se revisa la traza antes de contarlo como sobre-rechazo.
+- **Chequeo de cordura del retrieval:** el caso 9 (sin sustento) recupera `rechazos-tarjeta#motivos-frecuentes` (2.489) y `spei-devoluciones#que-pasa-con-el-dinero` (2.112), y A1 recupera `aclaraciones#cuando-procede-una-aclaracion` (2.887). Los tres superan τ = 2.0 sin ser relevantes. Es el riesgo de margen delgado de la spec 03, confirmado con consultas reales. Las etiquetas no cambian, porque son la verdad de terreno; el runner medirá la diferencia.
+- `evals` es paquete raíz de import-linter, y los fixtures que copian el proyecto a `tmp` incluyen `evals/`.
