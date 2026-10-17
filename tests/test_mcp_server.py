@@ -24,7 +24,7 @@ from mcp.types import TextContent
 from backend.domain.sensitive import find_sensitive
 from backend.mock_core.repository import JsonCoreRepository
 from backend.security.masking import mask
-from mcp_server.server import create_server
+from mcp_server.server import _outbound, create_server
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS = {"get_customer", "list_transactions", "get_spei_status", "get_card_authorization"}
@@ -451,3 +451,10 @@ def test_non_mcp_errors_are_masked_over_stdio(raw_customers):
     assert all("error" in r for r in responses.values())
     for stream in (stdout, err):
         assert clabe not in stream and find_sensitive(stream) == []
+
+
+def test_outbound_wraps_non_string_third_party_values():
+    """Invariant 5: a third-party field of an unexpected type is still wrapped, never raw."""
+    out = _outbound({"merchant": 12345, "concept": None, "amount": 100})
+    assert out["merchant"] == {"untrusted_text": "12345", "source": "comercio"}
+    assert out["concept"] is None and out["amount"] == 100

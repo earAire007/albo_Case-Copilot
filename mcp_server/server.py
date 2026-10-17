@@ -55,8 +55,10 @@ CARD_AUTH_FIELDS = (
 def _outbound(payload: dict[str, Json]) -> dict[str, Json]:
     shaped: dict[str, Json] = {}
     for key, value in payload.items():
-        if key in UNTRUSTED_FIELDS and isinstance(value, str):
-            wrapped = wrap_untrusted(value, UNTRUSTED_FIELDS[key])
+        if key in UNTRUSTED_FIELDS and value is not None:
+            # Any non-None type is wrapped as text: never let third-party data out raw.
+            text = value if isinstance(value, str) else str(value)
+            wrapped = wrap_untrusted(text, UNTRUSTED_FIELDS[key])
             envelope: dict[str, Json] = {
                 "untrusted_text": wrapped["untrusted_text"],
                 "source": wrapped["source"],

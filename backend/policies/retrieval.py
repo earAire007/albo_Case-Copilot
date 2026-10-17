@@ -17,7 +17,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-from backend.security.masking import mask_text
+from backend.security.masking import Json, mask
 from backend.security.untrusted import wrap_untrusted
 
 DEFAULT_POLICIES_DIR = Path(__file__).resolve().parents[2] / "data" / "policies"
@@ -112,19 +112,22 @@ def _default_index() -> PolicyIndex:
     return build_index()
 
 
-def search_policies(query: str, k: int = 3) -> list[dict[str, Any]]:
+def search_policies(
+    query: str, k: int = 3, index: PolicyIndex | None = None
+) -> list[dict[str, Any]]:
     if not 1 <= k <= MAX_K:
         raise ValueError(f"k must be between 1 and {MAX_K}")
-    results = []
-    for score, chunk in _default_index().scores(query)[:k]:
+    results: list[dict[str, Json]] = []
+    for score, chunk in (index or _default_index()).scores(query)[:k]:
         # score > 0 implies at least one non-stopword query term matched.
         if score <= 0 or score < SCORE_THRESHOLD:
             break
-        results.append(
-            {
-                "id": chunk.id,
-                "score": round(score, 4),
-                "text": wrap_untrusted(mask_text(chunk.text), SOURCE),
-            }
-        )
-    return results
+        wrapped = wrap_untrusted(chunk.text, SOURCE)
+        result: dict[str, Json] = {
+            "id": chunk.id,
+            "score": round(score, 4),
+            "text": {"untrusted_text": wrapped["untrusted_text"], "source": wrapped["source"]},
+        }
+        # Whole result through mask(): the text and also the id (built from a title).
+        results.append(mask(result))
+    return [dict(r) for r in results]

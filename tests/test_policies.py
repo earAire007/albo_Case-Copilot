@@ -1,5 +1,6 @@
 """Spec 03 — RAG de políticas: corpus, chunking estable, BM25 con umbral, no confiable."""
 
+import json
 import re
 import shutil
 import subprocess
@@ -9,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from backend.domain.sensitive import find_sensitive
 from backend.policies.retrieval import build_index, search_policies
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -149,3 +151,23 @@ def test_policies_import_contract(tmp_path):
     )
     assert result.returncode != 0
     assert "policies are independent of the core and the MCP BROKEN" in result.stdout
+
+
+def test_chunks_are_masked(tmp_path, raw_customers):
+    """Invariant 4 on this path: a corpus with sensitive data comes out masked (id too)."""
+    c = raw_customers[0]
+    (tmp_path / "filtrada.md").write_text(
+        f"# Filtrada\n\n## Cuenta {c['clabe']}\n\nReembolso a la CLABE {c['clabe']} "
+        f"con tarjeta {c['card_number']} y RFC {c['rfc']}.\n\n"
+        # Filler sections: BM25 idf on a 2-chunk corpus is too low for the frozen threshold.
+        + "".join(f"## Relleno {i}\n\nTexto sin relación numero {i}.\n\n" for i in range(8)),
+        encoding="utf-8",
+    )
+    results = search_policies("reembolso clabe tarjeta", k=1, index=build_index(tmp_path))
+    assert results
+    (r,) = results
+    text = r["text"]["untrusted_text"]
+    assert f"Reembolso a la CLABE ****{c['clabe'][-4:]}" in text
+    assert f"con tarjeta ****{c['card_number'][-4:]} y RFC [RFC]." in text
+    dumped = json.dumps(r, ensure_ascii=False)
+    assert find_sensitive(dumped) == [] and c["clabe"] not in dumped
