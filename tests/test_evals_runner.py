@@ -385,3 +385,24 @@ def test_diagnostic_runs_never_count_as_the_latest_run(tmp_path, monkeypatch):
     assert runner.diagnostic_path("20270101T000000Z", "opus-5.5").name.startswith(
         "20270101T000000Z-diag-"
     )
+
+
+def test_label_template_pairs_the_requested_cases(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner, "RUNS_DIR", tmp_path)
+    monkeypatch.setattr(runner.judge, "LABELS_PATH", tmp_path / "human.json")
+    result = {"message": "m", "evidence": "e", "reply": "r"}
+    cases = ["01-a", "03-b", "13-c", "14-d"]
+    for variant in ("opus-5.5", "sonnet-5.5"):
+        results = [{**result, "case_id": c} for c in cases]
+        (tmp_path / f"20260101T000000Z-{variant}.json").write_text(
+            json.dumps({"run": {"results": results}})
+        )
+    runner.label_template(["01", "13"])
+    mapping = json.loads((tmp_path / "20260101T000000Z-labels-mapping.json").read_text())
+    pairs = sorted(tuple(v) for v in mapping["mapping"].values())
+    assert pairs == [
+        ("opus-5.5", "01-a"),
+        ("opus-5.5", "13-c"),
+        ("sonnet-5.5", "01-a"),
+        ("sonnet-5.5", "13-c"),
+    ]

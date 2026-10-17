@@ -51,7 +51,7 @@ evals:
 
 # ~10 anonymous answers from the latest run for a person to label (never overwrites labels).
 evals-label-template:
-	PYTHONPATH=. uv run python -m evals.runner --label-template
+	PYTHONPATH=. uv run python -m evals.runner --label-template $(if $(LABEL_CASES),--label-cases $(LABEL_CASES),)
 
 # Blind judge over the labeled answers; agreement per variant into EVALS.md. Costs money:
 # MAX_USD is mandatory here too.

@@ -582,14 +582,22 @@ def diagnostic_path(stamp: str, variant: str) -> Path:
     return RUNS_DIR / f"{stamp}-diag-{variant}.json"
 
 
-def label_template() -> None:
+def label_template(case_prefixes: Sequence[str] | None = None) -> None:
     """~10 anonymous answers (half per variant) for a person to label. Never overwrites
-    labels; the mapping to the variant stays in evals/runs/ (git-ignored)."""
+    labels; the mapping to the variant stays in evals/runs/ (git-ignored). With
+    `case_prefixes`, the same cases in every variant (paired); otherwise one in three."""
     stamp, runs = _latest_runs()
     items: list[judge.JudgeItem] = []
     for variant, data in runs.items():
         answered = [r for r in data["run"]["results"] if r["reply"]]
-        for r in answered[:: max(1, len(answered) // LABELS_PER_VARIANT)][:LABELS_PER_VARIANT]:
+        if case_prefixes:
+            chosen = [r for r in answered if r["case_id"].startswith(tuple(case_prefixes))]
+            if len(chosen) != len(case_prefixes):
+                raise SystemExit(f"{variant}: no todos los casos pedidos tienen respuesta.")
+        else:
+            step = max(1, len(answered) // LABELS_PER_VARIANT)
+            chosen = answered[::step][:LABELS_PER_VARIANT]
+        for r in chosen:
             items.append(
                 judge.JudgeItem(variant, r["case_id"], r["message"], r["evidence"], r["reply"])
             )
@@ -598,7 +606,9 @@ def label_template() -> None:
     (RUNS_DIR / f"{stamp}-labels-mapping.json").write_text(
         json.dumps({"seed": LABEL_SEED, "mapping": mapping}, ensure_ascii=False, indent=2)
     )
-    print(f"Plantilla: {judge.LABELS_PATH.relative_to(REPO_ROOT)} ({len(blinded)} respuestas)")
+    path = judge.LABELS_PATH
+    shown = path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path
+    print(f"Plantilla: {shown} ({len(blinded)} respuestas)")
 
 
 JUDGE_EST_COST_PER_ITEM = 0.05
@@ -642,6 +652,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--max-usd", type=float, default=None)
     parser.add_argument("--label-template", action="store_true")
     parser.add_argument("--judge", action="store_true")
+    parser.add_argument("--label-cases", default=None, help="p. ej. 01,03,08,10,13")
     parser.add_argument(
         "--cases",
         default=None,
@@ -650,7 +661,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
     if args.label_template:
-        label_template()
+        label_template(str(args.label_cases).split(",") if args.label_cases else None)
         return
     max_usd = args.max_usd if args.max_usd is not None else os.environ.get("MAX_USD")
     if not max_usd:
