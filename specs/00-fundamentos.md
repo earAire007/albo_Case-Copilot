@@ -30,6 +30,7 @@ Estas garantías viven en código y cada una tiene un test determinista:
 
 1. **Sin capacidad de mover dinero.** No existe tool de reembolso ni transferencia.
 2. **Planner/executor separados.** El LLM produce un objeto validado; las acciones son un enum cerrado (`open_dispute`, `resend_cep`, `escalate_fraud`, `none`). El executor es código y solo ejecuta con aprobación humana registrada.
+   *Nota posterior (spec 08, 2026-10-17):* en el código, `ActionType` tiene tres valores (`open_dispute`, `resend_cep`, `escalate_fraud`); "sin acción" es `action: null`, no un valor `none` del enum.
 3. **Scoping por capacidad.** El `customer_id` se inyecta desde el caso; el modelo no puede consultar otra cuenta.
 4. **Enmascarado en la frontera.** CLABE, tarjeta, RFC y CURP llegan enmascarados al modelo, a logs y a trazas. Solo el executor resuelve el valor real tras aprobación.
 5. **Contenido no confiable delimitado.** Texto de clientes, chunks de política y resultados de tools van marcados como datos. El detector de injection es señal para métricas, no la garantía.
@@ -52,4 +53,5 @@ Estas garantías viven en código y cada una tiene un test determinista:
 - Invariante 5 ampliada a resultados de tools (`943b634`), tras sembrar una injection en el concepto de un SPEI (spec 01).
 - AC4 cubierto con nombres de test, contratos de arquitectura y marcas `(parcial: …)` / `(pendiente, spec NN)` en DESIGN.md; `make check-docs` (spec 01b) hace cumplir que ninguna invariante quede sin cobertura ni pendiente, y que ningún pendiente sobreviva al cierre de su spec.
 - AC1–AC3 verificados por inspección del repo. El contenido de `.env.example` no lo lee el agente (regla `deny` en `.claude/settings.json`); que no tenga valores reales lo verificó una persona el 2026-10-16.
+  *Nota posterior (spec 08, 2026-10-17):* la regla `deny` se ajustó y el agente lee y edita `.env.example` (`a18159d`); que no tenga valores reales lo verifica `test_env_example_has_nothing_shaped_like_a_secret`, y que construya la configuración de producción, `test_env_example_builds_production_config`.
 - Las decisiones abiertas (loop propio vs PydanticAI, embeddings vs BM25) siguen diferidas a las specs 05 y 03.
