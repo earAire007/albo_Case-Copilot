@@ -23,6 +23,8 @@ export type Case = {
   ticket_id: string;
   customer_id: string;
   status: string;
+  // Only for requires_human / execution_failed: fixed ops catalog, never raw errors.
+  status_reason: string | null;
   as_of: string;
   message: string;
   case_type: string | null;

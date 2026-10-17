@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import anyio
+import pytest
 from mcp import Client
 
 from backend.agent.model import (
@@ -219,6 +220,31 @@ def test_retries_exhausted_require_human():
     assert any(
         t["payload"].get("reason") == "provider_unavailable" for t in steps_of(store, "stop")
     )
+
+
+@pytest.mark.parametrize(
+    ("error", "retried"),
+    [
+        (TransientModelError("rate_limit"), True),
+        (TransientModelError("timeout"), True),
+        (TransientModelError("server"), True),
+        (TransientModelError("connection"), True),
+        (ModelRequestError("config"), False),
+        (ModelRequestError("bad_request"), False),
+        (ModelRequestError("not_found"), False),
+        (ModelRequestError("request"), False),
+    ],
+)
+def test_only_transient_failures_are_retried(error, retried):
+    rec = Recorder()
+    model = FakeModel(error, final())
+    result, store = run(model, recorder=rec)
+    if retried:
+        assert result.status == "answered" and len(model.requests) == 2 and len(rec.sleeps) == 1
+    else:
+        assert result.status == "requires_human" and len(model.requests) == 1 and rec.sleeps == []
+        expected = "config_error" if error.kind == "config" else "provider_error"
+        assert [t["payload"]["reason"] for t in steps_of(store, "stop")] == [expected]
 
 
 def test_refusal_and_max_tokens_require_human():

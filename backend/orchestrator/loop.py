@@ -8,7 +8,8 @@ an answer, or a case for a human. Never executes.
 Failure policy:
 - timeout / rate limit / 5xx / connection: retried with exponential backoff and jitter;
   exhausted -> human. Non-retryable provider errors (4xx) -> human at once, traced by
-  kind (never the SDK message). A tool that raises or returns non-JSON goes back to the
+  kind (never the SDK message); missing or rejected credentials stop as `config_error`.
+  A tool that raises or returns non-JSON goes back to the
   model as a tool error.
 - refusal / max_tokens: human (no server-side fallbacks: retrying adversarial content on
   another model is shopping for one that accepts the injection).
@@ -128,7 +129,7 @@ async def _call_model(
             step = await model.step(SYSTEM, list(messages), tools)
         except ModelRequestError as exc:
             store.add_trace(ctx.case_id, "provider_error", {"kind": exc.kind, "attempt": attempt})
-            return "provider_error"
+            return "config_error" if exc.kind == "config" else "provider_error"
         except TransientModelError as exc:
             store.add_trace(ctx.case_id, "provider_error", {"kind": exc.kind, "attempt": attempt})
             if attempt == config.max_retries:

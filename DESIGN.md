@@ -79,12 +79,16 @@ Spec 05b, `backend/orchestrator/loop.py`. Los reintentos son del harness (`max_r
 | Falla | Tratamiento |
 |---|---|
 | Timeout, 429, 5xx, error de conexión | Backoff exponencial con jitter, hasta 3 reintentos; agotados, el caso va a humano |
-| 4xx no transitorio (`ModelRequestError`) | El caso va a humano de inmediato; se traza el tipo de error, nunca el mensaje del SDK |
+| Sin credenciales, 401 o 403 (`config_error`) | El caso va a humano en el primer intento, sin llamar al proveedor si no hay credencial; al arrancar sin credenciales la app lo avisa en el log |
+| Otro 4xx no transitorio (`ModelRequestError`) | El caso va a humano de inmediato; se traza el tipo de error, nunca el mensaje del SDK |
+| Excepción inesperada en el worker (`worker_error`) | Un reintento del job; agotado, el caso va a humano |
 | `refusal`, `max_tokens` | El caso va a humano, sin fallbacks del servidor |
 | Salida con formato inválido (`schema`, `no_support`) | Un reintento de reparación con los valores permitidos, nunca con el texto rechazado |
 | Rechazo de seguridad o de sustento (`action`, `digits`, `citations`, `facts`) | El caso va a humano, sin reintento |
 | Presupuesto excedido (6 tools o 30 000 tokens por caso) | El caso va a humano |
 | Una tool lanza una excepción o devuelve algo que no es JSON | Error de tool genérico para el modelo; se traza `tool_error` |
+
+Un caso en `requires_human` o `execution_failed` lleva `status_reason`: un motivo del catálogo de la spec 07 (`backend/app/status_reason.py`), elegido por la traza y sin copiar su texto, que la consola muestra junto al estado.
 
 La salida estructurada (`output_config.format`) hace raras las reparaciones: en la segunda corrida de humo hubo 0 rechazos de formato.
 

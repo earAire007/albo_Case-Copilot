@@ -68,9 +68,10 @@ class TransientModelError(Exception):
 
 
 class ModelRequestError(Exception):
-    """Non-retryable provider failure (4xx): the case goes to a human, never retried."""
+    """Non-retryable provider failure (4xx): the case goes to a human, never retried.
+    `config`: no credentials, or the provider rejected them (401/403)."""
 
-    def __init__(self, kind: Literal["bad_request", "auth", "not_found", "request"]) -> None:
+    def __init__(self, kind: Literal["bad_request", "config", "not_found", "request"]) -> None:
         super().__init__(kind)
         self.kind = kind
 

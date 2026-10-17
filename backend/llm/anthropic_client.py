@@ -1,6 +1,8 @@
 """Anthropic adapter for the tool-calling port (spec 05b).
 
 - Model, effort, max_tokens and timeout come from the environment (.env).
+- No credentials resolved, or 401/403: `ModelRequestError("config")`, without a request
+  (spec 07, clean-clone adjustment).
 - `max_retries=0`: retries are ours (orchestrator), so each one is traced and the sleep
   can be injected in tests. Retryable SDK errors become TransientModelError.
 - No server-side fallbacks on refusal (see DESIGN.md, trade-offs).
@@ -83,9 +85,20 @@ class AnthropicModel:
         self.settings = settings
         self.client = client or anthropic.AsyncAnthropic(max_retries=0, timeout=settings.timeout_s)
 
+    @property
+    def configured(self) -> bool:
+        """Whether the SDK resolved any credential (env var, token or `ant auth` profile).
+        Without one, the SDK raises TypeError on the first request."""
+        return any(
+            getattr(self.client, name, None) is not None
+            for name in ("api_key", "auth_token", "credentials")
+        )
+
     async def step(
         self, system: str, messages: list[dict[str, Any]], tools: Sequence[ToolSpec]
     ) -> ModelStep:
+        if not self.configured:
+            raise ModelRequestError("config")
         tool_params: list[ToolParam] = [
             {"name": t.name, "description": t.description, "input_schema": dict(t.input_schema)}
             for t in tools
@@ -114,7 +127,7 @@ class AnthropicModel:
         except anthropic.APIConnectionError as exc:
             raise TransientModelError("connection") from exc
         except (anthropic.AuthenticationError, anthropic.PermissionDeniedError) as exc:
-            raise ModelRequestError("auth") from exc
+            raise ModelRequestError("config") from exc
         except anthropic.BadRequestError as exc:
             raise ModelRequestError("bad_request") from exc
         except anthropic.NotFoundError as exc:

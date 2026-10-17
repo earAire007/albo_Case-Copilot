@@ -17,6 +17,7 @@ const CASE: Case = {
   edited_by: null,
   edited_at: null,
   reasoning_summary: "Dos cargos idénticos en Liverpool el mismo día.",
+  status_reason: null,
   proposal: {
     id: 7,
     action: "open_dispute",
@@ -105,6 +106,29 @@ test("an approved case whose execution failed offers a retry", async () => {
   expect(screen.queryByRole("button", { name: "Aprobar" })).toBeNull();
   fireEvent.click(await screen.findByRole("button", { name: "Reintentar ejecución" }));
   await waitFor(() => expect(calls).toContain("/api/proposals/7/approve"));
+});
+
+function serve(body: Case) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith("/trace") ? [] : body))),
+  );
+}
+
+test("a case for a human shows its reason next to the status", async () => {
+  const reason =
+    "El servicio del modelo no está configurado o no aceptó la credencial; atiende el caso a mano.";
+  serve({ ...CASE, status: "requires_human", proposal: null, status_reason: reason });
+  render(<Detail caseId="case_1" onBack={() => {}} />);
+  expect((await screen.findByTestId("status-reason")).textContent).toBe(`Motivo: ${reason}`);
+});
+
+test("a pending case shows no reason", async () => {
+  serve(CASE);
+  render(<Detail caseId="case_1" onBack={() => {}} />);
+  await screen.findByTestId("reasoning");
+  expect(screen.queryByTestId("status-reason")).toBeNull();
+  expect(document.body.textContent).not.toContain("Motivo:");
 });
 
 test("shows the API error message", async () => {

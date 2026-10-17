@@ -40,9 +40,25 @@ class FakeMessages:
         )
 
 
+def fake_client(messages: Any, api_key: str | None = "sk-test") -> SimpleNamespace:
+    """SDK client double: credentials as the SDK resolves them, never a network call."""
+    return SimpleNamespace(messages=messages, api_key=api_key, auth_token=None, credentials=None)
+
+
+class NoCredentialsMessages:
+    """What the SDK does on the first request without credentials (TypeError)."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def create(self, **kwargs: Any) -> Any:
+        self.calls += 1
+        raise TypeError('"Could not resolve authentication method."')
+
+
 def test_adapter_request_has_no_fallbacks_and_auto_tool_choice():
     messages = FakeMessages()
-    model = AnthropicModel(SETTINGS, client=SimpleNamespace(messages=messages))
+    model = AnthropicModel(SETTINGS, client=fake_client(messages))
     tool = ToolSpec(name="get_customer", description="d", input_schema={"type": "object"})
     result = anyio.run(model.step, "sistema", [{"role": "user", "content": "hola"}], [tool])
 
@@ -87,8 +103,8 @@ _REQUEST = httpx2.Request("POST", "https://api.example")
     ("exc", "expected"),
     [
         (_status_error(anthropic.BadRequestError, 400), (ModelRequestError, "bad_request")),
-        (_status_error(anthropic.AuthenticationError, 401), (ModelRequestError, "auth")),
-        (_status_error(anthropic.PermissionDeniedError, 403), (ModelRequestError, "auth")),
+        (_status_error(anthropic.AuthenticationError, 401), (ModelRequestError, "config")),
+        (_status_error(anthropic.PermissionDeniedError, 403), (ModelRequestError, "config")),
         (_status_error(anthropic.NotFoundError, 404), (ModelRequestError, "not_found")),
         (_status_error(anthropic.UnprocessableEntityError, 422), (ModelRequestError, "request")),
         (_status_error(anthropic.RateLimitError, 429), (TransientModelError, "rate_limit")),
@@ -98,8 +114,19 @@ _REQUEST = httpx2.Request("POST", "https://api.example")
     ],
 )
 def test_adapter_maps_provider_errors(exc, expected):
-    model = AnthropicModel(SETTINGS, client=SimpleNamespace(messages=RaisingMessages(exc)))
+    model = AnthropicModel(SETTINGS, client=fake_client(RaisingMessages(exc)))
     cls, kind = expected
     with pytest.raises(cls) as info:
         anyio.run(model.step, "s", [{"role": "user", "content": "hola"}], [])
     assert info.value.kind == kind
+
+
+def test_auth_errors_are_config_errors():
+    """Missing credentials never reach the provider; 401/403 are the same config error."""
+    messages = NoCredentialsMessages()
+    model = AnthropicModel(SETTINGS, client=fake_client(messages, api_key=None))
+    assert model.configured is False
+    with pytest.raises(ModelRequestError) as info:
+        anyio.run(model.step, "s", [{"role": "user", "content": "hola"}], [])
+    assert info.value.kind == "config" and messages.calls == 0
+    assert AnthropicModel(SETTINGS, client=fake_client(FakeMessages())).configured is True

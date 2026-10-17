@@ -51,6 +51,11 @@ export function Detail({ caseId, onBack }: { caseId: string; onBack: () => void 
       <h2>
         Ticket {data.ticket_id} · {data.customer_id} · <span className="tag">{data.status}</span>
       </h2>
+      {data.status_reason && (
+        <p className="warn" data-testid="status-reason">
+          Motivo: {data.status_reason}
+        </p>
+      )}
       {error && (
         <p role="alert" className="error">
           {error}
@@ -116,7 +121,6 @@ export function Detail({ caseId, onBack }: { caseId: string; onBack: () => void 
               )}
               {data.status === "execution_failed" && (
                 <div className="actions">
-                  <p className="warn">Aprobada, pero la ejecución no quedó registrada.</p>
                   <button
                     onClick={() =>
                       run(() => api.approve(proposal.id, operator), "Ejecución registrada")

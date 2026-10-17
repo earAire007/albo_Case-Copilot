@@ -12,18 +12,20 @@ operations console (spec 07) uses.
 
 import hashlib
 import json
+import logging
 import os
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import anyio
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from backend.app.status_reason import status_reason
 from backend.approval.service import (
     ConflictError,
     approve,
@@ -36,6 +38,10 @@ from backend.approval.service import (
 from backend.mock_core.repository import CoreRepository, JsonCoreRepository
 from backend.store.store import IdempotencyConflictError, Store
 
+if TYPE_CHECKING:
+    from backend.llm.anthropic_client import AnthropicModel
+
+log = logging.getLogger(__name__)
 MEXICO_CITY = timezone(timedelta(hours=-6))
 CONSOLE_DIST = Path(__file__).resolve().parents[2] / "console" / "dist"
 _HIDDEN_TRACE_STEPS = frozenset({"prompt"})  # full prompts stay in the DB, not in the console
@@ -84,6 +90,7 @@ def _case_view(store: Store, case: dict[str, Any]) -> dict[str, Any]:
         "ticket_id": case["ticket_id"],
         "customer_id": case["customer_id"],
         "status": case["status"],
+        "status_reason": status_reason(case["status"], store.traces(case["id"])),
         "as_of": case["as_of"],
         "message": case["message"],
         "case_type": answer.get("case_type"),
@@ -206,14 +213,22 @@ def create_app(
     return app
 
 
-def _production_app() -> FastAPI:
+def _production_app(
+    *, store: Store | None = None, model: "AnthropicModel | None" = None
+) -> FastAPI:
+    """uvicorn factory; the arguments exist only so tests avoid the DB file and the SDK."""
     from backend.llm.anthropic_client import AnthropicModel, LlmSettings
     from backend.orchestrator.loop import LoopConfig
     from backend.worker.worker import run_once
 
-    store = Store()
+    store = store or Store()
     repo = JsonCoreRepository()
-    model = AnthropicModel(LlmSettings.from_env())
+    model = model or AnthropicModel(LlmSettings.from_env())
+    if not model.configured:
+        log.warning(
+            "Sin credenciales del modelo (ANTHROPIC_API_KEY): los casos se derivarán a "
+            "revisión humana."
+        )
     config = LoopConfig(
         price_input_per_mtok=float(os.environ.get("PRICE_INPUT_PER_MTOK", "4.0")),
         price_output_per_mtok=float(os.environ.get("PRICE_OUTPUT_PER_MTOK", "20.0")),
