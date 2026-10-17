@@ -60,11 +60,25 @@ Sensor de fugas en tests (`tests/sensitive_logs.py`, sin opción de desactivarlo
 
 ## Manejo de fallas del proveedor
 
-<!-- spec 05b -->
+Spec 05b, `backend/orchestrator/loop.py`. Los reintentos son del harness (`max_retries=0` en el SDK), para trazar cada uno:
+
+| Falla | Tratamiento |
+|---|---|
+| Timeout, 429, 5xx, error de conexión | Backoff exponencial con jitter, hasta 3 reintentos; agotados, el caso va a humano |
+| 4xx no transitorio (`ModelRequestError`) | El caso va a humano de inmediato; se traza el tipo de error, nunca el mensaje del SDK |
+| `refusal`, `max_tokens` | El caso va a humano, sin fallbacks del servidor |
+| Salida con formato inválido (`schema`, `no_support`) | Un reintento de reparación con los valores permitidos, nunca con el texto rechazado |
+| Rechazo de seguridad o de sustento (`action`, `digits`, `citations`, `facts`) | El caso va a humano, sin reintento |
+| Presupuesto excedido (6 tools o 30 000 tokens por caso) | El caso va a humano |
+| Una tool lanza una excepción o devuelve algo que no es JSON | Error de tool genérico para el modelo; se traza `tool_error` |
+
+La salida estructurada (`output_config.format`) hace raras las reparaciones: en la segunda corrida de humo hubo 0 rechazos de formato.
 
 ## Observabilidad y alertas
 
 <!-- spec 05a (trazas) y 05b (tokens, costo y latencia por paso; detector de injection) -->
+
+- **Por paso del modelo** (traza `model_step`): tokens de entrada y salida, costo con precios verificados, latencia, reintentos y motivo de término. Se persisten también las señales de injection, los rechazos con su validador, las paradas con su motivo, `provider_error` y `tool_error`.
 
 - **Detector de injection (spec 05b):** heurística barata sobre el mensaje del cliente, los resultados de tools y los chunks, registrada en la traza por vector. No es garantía (invariante 5): alimenta la columna "detectado" de EVALS.md junto a "bloqueado".
 

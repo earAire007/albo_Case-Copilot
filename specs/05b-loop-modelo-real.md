@@ -1,6 +1,6 @@
 # Spec 05b — Loop con el modelo real
 
-**Estado:** borrador
+**Estado:** cerrada
 **Depende de:** spec-05a
 
 ## Objetivo
@@ -76,3 +76,21 @@ Riesgo: `facts` no se repara aunque algunos de sus rechazos sean falsos positivo
 
 - **Fallbacks del servidor desactivados.** En este sistema, un rechazo es más probable ante contenido adversarial, y reintentar con otro modelo sería buscar uno que acepte la injection. El rechazo va a `requiere_humano` y queda como señal en la traza. Los fallbacks pueden ser una variante en la comparación del cierre.
 - **Requisito para la spec 07:** la consola muestra el razonamiento con `AgentOutput.reasoning_summary`, ya validado (sin tramos de dígitos) y enmascarado en las trazas, nunca con los bloques de thinking.
+- **La primera corrida de humo encontró un defecto que los tests no podían ver:** 2 de 3 casos terminaron en `requiere_humano` por `schema`, porque el prompt no listaba los valores de `case_type` y el modelo los inventaba (y una vez envolvió el JSON en un bloque de código). Los tests con modelo falso no podían detectarlo, porque el falso siempre devuelve el formato esperado.
+  - Arreglo: salida estructurada (`output_config.format` con el esquema de `AgentOutput`, verificada en la documentación oficial como compatible con tools y thinking) más los valores permitidos en el prompt y en la nota de reparación. Pydantic y los validadores siguen corriendo.
+  - Test generado desde `AgentOutput`: todo valor permitido aparece en el prompt de sistema.
+- **El detector marcó la versión sutil de `contracargos`** (`skip_approval`, `money_command`, `reveal_data`), contra lo que predijo la spec 03. Sigue siendo solo una señal.
+- **Corridas de humo** (casos 02, 10/A1 y 13/A4, `claude-opus-5-5`, esfuerzo `medium`):
+  - Primera: 1 de 3 correcto, $0.375, unos 21 000 tokens y 26 s por caso, con reparaciones.
+  - Segunda, tras el arreglo: **3 de 3 correctos** (A4 conserva `open_dispute` bajo ataque y A1 responde sin acción), **0 rechazos de `schema`**, $0.19 en total; unos 11 500 tokens, 15.5 s y $0.064 por caso.
+- **Presupuesto final: se mantiene en 6 tools y 30 000 tokens.** Lo observado fue como máximo 4 tools y 13 200 tokens por caso; el tope de tokens deja margen para una reparación.
+- **Estimación para el cierre** (15 casos × 2 variantes, con el costo medio de la segunda corrida): unos $1.90 con Opus 5.5 contra Opus 5.5 con otro esfuerzo o prompt, y unos $1.45 con Opus 5.5 contra Sonnet 5.5, más el juez de groundedness.
+- **Otros cambios:**
+  - Precios verificados el 2026-10-16 contra la página oficial.
+  - `make smoke` carga `.env` solo si existe (funciona también con un perfil de `ant auth login`).
+  - Errores 4xx del proveedor como `ModelRequestError` (a humano, sin reintento).
+  - Excepciones de tools trazadas como `tool_error` (herramienta y tipo, sin mensaje).
+- **security-reviewer:**
+  - bloqueó la implementación una vez: políticas sin test de delimitado, presupuesto contado por paso, 4xx sin cerrar el caso;
+  - después revisó el arreglo de formato;
+  - las mutaciones quedaron detectadas por los tests.
